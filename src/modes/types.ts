@@ -8,7 +8,8 @@ import type { RaceState } from './race';
 /** The parts of a car (cars/car.js) that modes use. */
 export interface Car {
   def: { id: string; name: string; driver: string; tag: string; hp: number; max: number; accel: number; turn: number; grip: number; ai: string };
-  isPlayer: boolean; alive: boolean; hp: number; x: number; y: number; z: number; yaw: number; readonly speed: number;
+  /** `human`: a person drives it; `isPlayer`: it's the car this screen follows; `pid` its place in G.cars; `name` its driver's. */
+  human: boolean; readonly isPlayer: boolean; pid: number; name: string; alive: boolean; hp: number; x: number; y: number; z: number; yaw: number; readonly speed: number;
   vx: number; vy: number; vz: number; radius: number;
   /** Race rules: no machine gun until a sword plate; a shield plate's time left; time spent in someone's slipstream. */
   mgLocked: boolean; shieldT: number; draft: number;
@@ -53,8 +54,8 @@ export interface GameMode {
   wrecked(c: Car, by: Car | null): void;
   /** HUD top centre: status text and clock. */
   status(player: Car): [string, string];
-  /** The results screen for the match that just ended. */
-  results(): Results;
+  /** The results screen for the match that just ended, as `viewer` (a human's car) sees it. */
+  results(viewer: Car): Results;
   /** Where a bot should steer and how fast it may go, or null to let it hunt (the default). */
   drive?(bot: Bot): { x: number; z: number; want: number } | null;
 }

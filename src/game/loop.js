@@ -30,8 +30,9 @@ export function tick(now) {
   if (G.state === 'playing') {
     G.slowT -= rdt; const ts = G.slowT > 0 ? 0.3 : 1; G.timeScale = lerp(G.timeScale, ts, 1 - Math.exp(-8 * rdt)); dt = rdt * G.timeScale;
     step(dt, rdt);
-    const p = G.player;
-    if (p.alive || G.endT > 1.5) chaseCam(rdt, p);
+    const p = G.player, watch = spectating(p);
+    if (watch) chaseCam(rdt, watch);
+    else if (p.alive || G.endT > 1.5) chaseCam(rdt, p);
     else orbitCam(rdt, p.x, p.y, p.z, 14, 6, 0.4, 1);
     // player headlight
     if (curTod.night) {
@@ -75,6 +76,14 @@ export function tick(now) {
   renderer.render(scene, camera);
 }
 
+/**
+ * Out of a match that goes on without you (online, others still fighting): after a moment at your wreck, watch
+ * whoever wrecked you, then whoever's still running. Null while there's nothing to watch but your own car.
+ */
+function spectating(p) {
+  if (p.alive || G.endT >= 0 || G.time - p.deathTime < 3.5) return null;
+  return p.wreckedBy && p.wreckedBy.alive ? p.wreckedBy : G.cars.find(c => c.alive) || null;
+}
 export function startLoop() { requestAnimationFrame(t => { lastT = t; frame(t); }); }
 
 // ================= quality & resize =================

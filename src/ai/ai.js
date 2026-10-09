@@ -8,7 +8,7 @@ import { smokeBetween } from '../combat/weapons.js';
 import { nearestPickup } from '../world/pickups';
 
 // ================= AI =================
-/** At most this many bots go after the player at once; the rest pick on each other until one drops off. */
+/** At most this many bots go after each person at once; the rest pick on each other until one drops off. */
 const MAX_ON_PLAYER = 2;
 const PERS = {
   skirmisher: { flee: 0.4, keep: 22, charge: false }, // fast and fragile: hit and run
@@ -35,8 +35,8 @@ export class AI {
         let s = Math.hypot(o.x - c.x, o.z - c.z);
         if (this.pers === 'opportunist') s -= (1 - o.hp / o.def.hp) * 70;
         if (o === c.lastHitBy && G.time - c.lastHitTime < 4) s -= 45;
-        if (o.isPlayer) s -= diff.bias + (G.mode.rivalry || 0);
-        if (o.isPlayer && this.target !== o && G.ais.filter(a => a !== this && a.target === o && a.car.alive).length >= MAX_ON_PLAYER) s += 80; // wait your turn
+        if (o.human) s -= diff.bias + (G.mode.rivalry || 0);
+        if (o.human && this.target !== o && G.ais.filter(a => a !== this && a.target === o && a.car.alive).length >= MAX_ON_PLAYER) s += 80; // wait your turn
         s += rand(0, 20);
         if (s < bs) { bs = s; best = o; }
       }

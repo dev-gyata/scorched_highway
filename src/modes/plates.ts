@@ -3,11 +3,10 @@
 //   you a heavy weapon, heavier the further back you are;
 // - shield: a few seconds in which you take a quarter of the damage;
 // - skull: sets off the next hazard ahead of you (a rockfall, a wrong-way truck), for whoever's in front.
-import { playSfx } from '../audio/audio.js';
 import { type Weapon, giveAmmo } from '../combat/arsenal';
+import { ALL, announce, emit, tell } from '../engine/events';
 import { FX_ADD, fxScale } from '../engine/particles.js';
 import { pick, rand } from '../engine/util.js';
-import { bigText, feed } from '../game/hud.js';
 import { G } from '../game/state.js';
 import { type HazardSite, isBusy, triggerHazard } from '../world/hazards';
 import { PICK } from '../world/pickups';
@@ -42,24 +41,21 @@ export function drivePlates(rules: PlateRules) {
   }
 }
 function plate(c: Car, p: Plate, rules: PlateRules) {
-  const me = c.isPlayer;
+  const me = c.human; // whoever took it hears and reads about it; everyone else hears about skulls
   for (let i = 0; i < 18 * fxScale; i++) FX_ADD.spawn(p.x + rand(-1.5, 1.5), p.y + 0.3, p.z + rand(-1.5, 1.5), rand(-2, 2), rand(5, 11), rand(-2, 2), 0.5, 1, 0.1, PLATE[p.type].color, 0xffffff, 0.9, 1, 4);
-  if (me) playSfx('plate');
+  if (me) emit({ kind: 'sound', to: c.pid, name: 'plate' });
   if (p.type === 'sword') {
-    if (c.mgLocked) { c.mgLocked = false; if (me) bigText('Machine gun armed!', 1.2); }
+    if (c.mgLocked) { c.mgLocked = false; if (me) announce(c.pid, 'Machine gun armed!', 1.2); }
     const pool = rules.rank(c) >= 0.5 ? SWORD_BACK : SWORD_FRONT;
-    for (const w of [pick(pool), ...pool]) { const dropped = giveAmmo(c, w); if (dropped === false) continue; if (me) feed(`Sword: +${PICK[w].amt}${w === 'flame' ? 's' : ''} ${PICK[w].label}`, true); break; }
+    for (const w of [pick(pool), ...pool]) { const dropped = giveAmmo(c, w); if (dropped === false) continue; if (me) tell(c.pid, `Sword: +${PICK[w].amt}${w === 'flame' ? 's' : ''} ${PICK[w].label}`); break; }
   } else if (p.type === 'shield') {
-    c.shieldT = SHIELD_TIME; if (me) feed('Shield up', true);
+    c.shieldT = SHIELD_TIME; if (me) tell(c.pid, 'Shield up');
   } else {
     const site = nextHazard(c, (G.map.hazards || []) as HazardSite[], rules);
-    if (!site || !triggerHazard(site, c as never)) { if (me) feed('Skull: nothing left to set off', true); return; }
+    if (!site || !triggerHazard(site, c as never)) { if (me) tell(c.pid, 'Skull: nothing left to set off'); return; }
     const what = site.kind === 'truck' ? `a truck is coming down ${site.name}` : `rockfall in ${site.name}`;
-    if (me) feed(`Skull: ${what}`, true);
-    else {
-      const pl = G.player as Car;
-      if (pl.alive && rules.ahead(pl, site.s) < 450) bigText(site.kind === 'truck' ? 'Truck coming!' : 'Rockfall ahead!', 1.4);
-      feed(`${c.def.driver.split(' ')[0]} hit a skull: ${what}`, false);
-    }
+    if (me) tell(c.pid, `Skull: ${what}`);
+    for (const o of G.cars as Car[]) if (o !== c && o.human && o.alive && rules.ahead(o, site.s) < 450) announce(o.pid, site.kind === 'truck' ? 'Truck coming!' : 'Rockfall ahead!', 1.4);
+    emit({ kind: 'feed', to: ALL, skip: c.pid, text: `${c.name.split(' ')[0]} hit a skull: ${what}` });
   }
 }

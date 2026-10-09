@@ -45,7 +45,7 @@ function wireUI() {
     requestAnimationFrame(() => requestAnimationFrame(() => { b.disabled = false; startMatch(); b.textContent = mode.startLabel; }));
   });
   $('#resumeBtn').addEventListener('click', resumeGame);
-  $('#restartBtn').addEventListener('click', startMatch);
+  $('#restartBtn').addEventListener('click', () => startMatch());
   $('#quitBtn').addEventListener('click', goGarage);
   $('#pHelpBtn').addEventListener('click', () => { G.helpFrom = 'paused'; showHelp(); });
   $('#toSettings').addEventListener('click', () => { G.helpFrom = 'title'; show('settings'); });
@@ -54,7 +54,7 @@ function wireUI() {
   for (const b of $('#controlsDevice').querySelectorAll('button')) b.addEventListener('click', () => showControls(/** @type {any} */ (b).dataset.v));
   watchOrientation(pauseGame);
   $('#pauseBtn').addEventListener('click', pauseGame);
-  $('#againBtn').addEventListener('click', startMatch);
+  $('#againBtn').addEventListener('click', () => startMatch());
   $('#oGarageBtn').addEventListener('click', goGarage);
   $('#oTitleBtn').addEventListener('click', goTitle);
   addEventListener('pointerdown', () => ensureAudio(), { once: true });

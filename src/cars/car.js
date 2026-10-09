@@ -22,8 +22,14 @@ const CONTACT_RISE = 0.6, CONTACT_DROP = 0.8;
 const BUBBLE_GEO = (() => { const g = new THREE.IcosahedronGeometry(1, 2); g.scale(1.9, 1.35, 3.1); return g; })();
 const BUBBLE_MAT = new THREE.MeshBasicMaterial({ color: 0x3aa8f0, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false, wireframe: true });
 export class Car {
-  constructor(def, isPlayer) {
-    this.def = def; this.isPlayer = isPlayer;
+  /**
+   * `human`: a person drives it (the rules treat them alike, see combat/damage.js and ai/ai.js); `name` is shown on its
+   * tag, in the feed and the standings (the driver's for bots); `pid` is its place in G.cars, how events and online
+   * messages name it.
+   */
+  constructor(def, { human = false, name = def.driver, pid = 0 } = {}) {
+    this.def = def; this.human = human; this.name = name; this.pid = pid;
+    /** @type {any} what a human driver is doing (input/input.js Controls), set by the local devices or sent from afar */ this.ctl = null;
     this.model = buildCarModel(def); this.obj = this.model.group; this.body = this.model.body;
     addToScene(this.obj, 'cars');
     this.radius = 1.9; this.mass = def.mass; this.up = new THREE.Vector3(0, 1, 0);
@@ -61,6 +67,8 @@ export class Car {
   }
   /** A surface's top-speed factor for this car: heavy cars plough through sand better (Big Chill loses about half as much). */
   surface(g) { return g < 1 ? 1 - (1 - g) * clamp(1.4 - 0.5 * this.mass, 0.5, 1) : g; }
+  /** The car this screen follows: camera, HUD and sounds (a rule about people driving wants `human`). */
+  get isPlayer() { return this === G.player; }
   get speed() { return Math.hypot(this.vx, this.vz); }
   get fx() { return Math.sin(this.yaw); }
   get fz() { return Math.cos(this.yaw); }
@@ -69,7 +77,6 @@ export class Car {
     this.flash = Math.max(0, this.flash - dt * 5);
     if (this.boost > 0) this.boost -= dt; if (this.frozen > 0) this.frozen -= dt; this.resetCd -= dt;
     if (this.shieldT > 0) this.shieldT -= dt;
-    this.shieldFX();
     if (!this.alive) { inp.throttle = 0; inp.steer = 0; inp.handbrake = true; }
     const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw), rx = -fz, rz = fx;
     let vF = this.vx * fx + this.vz * fz, vL = this.vx * rx + this.vz * rz;
@@ -90,21 +97,11 @@ export class Car {
       const sp = Math.abs(vF);
       const sf = clamp(sp / 7, 0, 1) * (1 - 0.3 * clamp(sp / d.max, 0, 1)) * (hb ? 1.5 : 1) * (this.frozen > 0 ? 0.6 : 1);
       this.yaw -= inp.steer * d.turn * this.turnK * sf * (vF < -0.5 ? -1 : 1) * dt;
-      // drift dust
-      if (this.alive && (sp > 14 || Math.abs(vL) > 5)) {
-        this.dustT -= dt * (sp / 20 + Math.abs(vL) / 6);
-        if (this.dustT <= 0) {
-          this.dustT = 0.06 / fxScale;
-          const bx = this.x - fx * 1.6, bz = this.z - fz * 1.6;
-          FX_SMOKE.spawn(bx + rx * rand(-1, 1), this.y + 0.3, bz + rz * rand(-1, 1), -this.vx * 0.1 + rand(-1, 1), rand(0.5, 2), -this.vz * 0.1 + rand(-1, 1), rand(0.7, 1.3), 1, 3.5 + Math.abs(vL) * 0.2, curTod.night ? 0x6a5a6a : 0xd8a878, curTod.night ? 0x4a3a50 : 0xe8c090, Math.abs(vL) > 5 ? 0.5 : 0.28, 1.2, -0.5);
-        }
-      }
     } else {
       this.yaw -= inp.steer * d.turn * 0.3 * dt;
       vF *= 1 - 0.04 * dt;
     }
     this.vx = fx * vF + rx * vL; this.vz = fz * vF + rz * vL;
-    this.accelVis = (vF - this.lastVF) / Math.max(dt, 0.001); this.lastVF = vF;
     // horizontal move with step check
     const x0 = this.x, z0 = this.z;
     let nx = this.x + this.vx * dt, nz = this.z + this.vz * dt;
@@ -146,12 +143,32 @@ export class Car {
       _nrm.set(0, 1, 0); _nrm.x -= Math.sin(this.yaw) * clamp(this.vy * 0.012, -0.4, 0.4); _nrm.z -= Math.cos(this.yaw) * clamp(this.vy * 0.012, -0.4, 0.4);
       this.up.lerp(_nrm.normalize(), 1 - Math.exp(-2.5 * dt)).normalize();
     }
-    // visuals
+    if (this.alive && this.burning > 0) { this.burning -= dt; damageCar(this, 5 * dt, this.burnBy, 'burn', true); }
+    this.visuals(dt);
+  }
+  /**
+   * The car's look for this frame, from where it is and how it's moving: body lean and pitch, wheels, ride height,
+   * drift dust, smoke, fire, lights and the shield. An online guest calls only this for cars the host drives (src/net).
+   */
+  visuals(dt) {
+    const d = this.def, inp = this.input, fx = Math.sin(this.yaw), fz = Math.cos(this.yaw), rx = -fz, rz = fx;
+    const vF = this.vx * fx + this.vz * fz, vL = this.vx * rx + this.vz * rz, sp = Math.abs(vF);
+    this.accelVis = (vF - this.lastVF) / Math.max(dt, 0.001); this.lastVF = vF;
+    // drift dust
+    if (this.alive && this.grounded && (sp > 14 || Math.abs(vL) > 5)) {
+      this.dustT -= dt * (sp / 20 + Math.abs(vL) / 6);
+      if (this.dustT <= 0) {
+        this.dustT = 0.06 / fxScale;
+        const bx = this.x - fx * 1.6, bz = this.z - fz * 1.6;
+        FX_SMOKE.spawn(bx + rx * rand(-1, 1), this.y + 0.3, bz + rz * rand(-1, 1), -this.vx * 0.1 + rand(-1, 1), rand(0.5, 2), -this.vz * 0.1 + rand(-1, 1), rand(0.7, 1.3), 1, 3.5 + Math.abs(vL) * 0.2, curTod.night ? 0x6a5a6a : 0xd8a878, curTod.night ? 0x4a3a50 : 0xe8c090, Math.abs(vL) > 5 ? 0.5 : 0.28, 1.2, -0.5);
+      }
+    }
     const leanT = this.alive && this.grounded ? -inp.steer * clamp(Math.abs(vF) / d.max, 0, 1) * 0.07 : 0;
     this.lean = lerp(this.lean, leanT, 1 - Math.exp(-6 * dt));
     this.pitch = lerp(this.pitch, clamp(-this.accelVis * 0.0025, -0.06, 0.06), 1 - Math.exp(-5 * dt));
     this.wheelRot += vF * dt / 0.48;
     this.steerVis = lerp(this.steerVis, -inp.steer * 0.45, 1 - Math.exp(-10 * dt));
+    this.shieldFX();
     this.syncModel(dt);
     this.effects(dt);
   }
@@ -223,7 +240,6 @@ export class Car {
       return;
     }
     if (this.burning > 0) {
-      this.burning -= dt; damageCar(this, 5 * dt, this.burnBy, 'burn', true);
       if (Math.random() < 0.6 * fxScale) FX_ADD.spawn(this.x + rand(-1, 1), top, this.z + rand(-1, 1), this.vx * 0.5, rand(2, 5), this.vz * 0.5, rand(0.3, 0.5), 1.4, 0.3, 0xffd060, 0xff4010, 0.9, 1, -2);
     }
     if (this.frozen > 0 && Math.random() < 0.4 * fxScale) FX_ADD.spawn(this.x + rand(-1.2, 1.2), this.y + rand(0.5, 2), this.z + rand(-1.2, 1.2), 0, rand(-1, 1), 0, 0.6, 0.5, 0.1, 0xbfefff, 0x4fa0ff, 0.8, 0, 0);

@@ -143,8 +143,17 @@ export function pollGamepad() {
   PAD.prev = gp.buttons.map(x => x.pressed);
 }
 
+/**
+ * What a driver is doing this frame: held controls, plus one-shot presses that applyControls uses up. The local
+ * devices fill one in (readControls); online, a guest's comes over the network (src/net) and is applied the same way.
+ * @typedef {{ throttle: number, steer: number, handbrake: boolean, mg: boolean, w: boolean, fire: boolean, combo: number,
+ *   special: boolean, cycle: number, target: boolean, flip: boolean, aim: number, pref: number }} Controls
+ */
+/** @returns {Controls} */
+export function newControls() { return { throttle: 0, steer: 0, handbrake: false, mg: false, w: false, fire: false, combo: 0, special: false, cycle: 0, target: false, flip: false, aim: 1, pref: -1 }; }
 const AUTO = { sightT: 0, inSights: false, hardT: 0 };
-export function readPlayerInput(c, dt = 1 / 60) {
+/** Read the keyboard, touch controls and gamepad into `ctl` for car `c` (its sights drive the automatic machine gun). */
+export function readControls(c, dt, ctl) {
   const k = KEYS;
   let thr = ((k.ArrowUp || k.KeyW) ? 1 : 0) - ((k.ArrowDown || k.KeyS) ? 1 : 0);
   let steer = ((k.ArrowRight || k.KeyD) ? 1 : 0) - ((k.ArrowLeft || k.KeyA) ? 1 : 0);
@@ -165,14 +174,25 @@ export function readPlayerInput(c, dt = 1 / 60) {
   // automatic drift: holding the steering hard over at speed for a moment slides the back out
   AUTO.hardT = Math.abs(steer) > 0.85 && thr > 0 && c.speed > 22 ? AUTO.hardT + dt : 0;
   if (G.settings.autodrift === 'on' && AUTO.hardT > 0.25) hb = true;
-  c.input.throttle = thr; c.input.steer = steer; c.input.handbrake = hb;
-  c.mgHeld = mg; c.wHeld = w;
-  c.aimAssist = LAST.device === 'touch' ? TOUCH_AIM : 1; // thumbs steer less precisely than keys
-  if (INP.wPress) { c.wFire = true; c.wCombo = INP.combo; INP.wPress = false; INP.combo = 0; }
-  if (INP.sPress) { c.sFire = true; INP.sPress = false; }
-  if (INP.cycle) { cycleWeapon(c, INP.cycle); INP.cycle = 0; }
-  if (INP.target) { INP.target = false; cycleTarget(c); }
-  if (INP.reset) { INP.reset = false; flipBack(c); }
+  ctl.throttle = thr; ctl.steer = steer; ctl.handbrake = hb; ctl.mg = mg; ctl.w = w;
+  ctl.aim = LAST.device === 'touch' ? TOUCH_AIM : 1; // thumbs steer less precisely than keys
+  if (INP.wPress) { ctl.fire = true; ctl.combo = INP.combo; INP.wPress = false; INP.combo = 0; }
+  if (INP.sPress) { ctl.special = true; INP.sPress = false; }
+  if (INP.cycle) { ctl.cycle = INP.cycle; INP.cycle = 0; }
+  if (INP.target) { ctl.target = true; INP.target = false; }
+  if (INP.reset) { ctl.flip = true; INP.reset = false; }
+  ctl.pref = c.pref ? c.pref.pid : -1;
+}
+/** Drive car `c` with `ctl`, using up its one-shot presses. */
+export function applyControls(c, ctl) {
+  c.input.throttle = ctl.throttle; c.input.steer = ctl.steer; c.input.handbrake = ctl.handbrake;
+  c.mgHeld = ctl.mg; c.wHeld = ctl.w; c.aimAssist = ctl.aim;
+  if (ctl.fire) { c.wFire = true; c.wCombo = ctl.combo; ctl.fire = false; ctl.combo = 0; }
+  if (ctl.special) { c.sFire = true; ctl.special = false; }
+  if (ctl.cycle) { cycleWeapon(c, ctl.cycle); ctl.cycle = 0; }
+  const pref = G.cars[ctl.pref]; if (ctl.pref >= 0 && pref && pref !== c) c.pref = pref; // a tapped name tag (see setupTouch)
+  if (ctl.target) { ctl.target = false; cycleTarget(c); }
+  if (ctl.flip) { ctl.flip = false; flipBack(c); }
 }
 function flipBack(c) {
   if (!c.alive || c.resetCd > 0) return;

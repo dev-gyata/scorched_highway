@@ -3,8 +3,8 @@
 // course, the wrong-way warning, plates (see plates.ts), rubber banding and slipstreams, and how bots drive the
 // racing line.
 import { damageCar } from '../combat/damage.js';
+import { ALL, announce, emit, tell } from '../engine/events';
 import { clamp, rand } from '../engine/util.js';
-import { bigText, feed } from '../game/hud.js';
 import { G, later } from '../game/state.js';
 import type { Course, CoursePath, PlateTag, Progress } from '../maps/types';
 import { type PlateRules, drivePlates } from './plates';
@@ -47,6 +47,7 @@ export const DRAFT = 0.07;
 
 let course: Course, finishers = 0, spawnSlot = 0, endT = -1, leader: Car | null = null;
 const cars = () => G.cars as Array<Car & { race: RaceState }>;
+const humans = () => cars().filter(c => c.human);
 const ordinal = (n: number) => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
 /** "1:07.42" */
 export function raceTime(t: number) { const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s < 10 ? '0' : ''}${s.toFixed(2)}`; }
@@ -63,14 +64,17 @@ export function standings<T extends Car & { race: RaceState }>(list: T[]): T[] {
 
 // ---------- events ----------
 function lapDone(c: Car, t: number, lap: number) {
-  if (!c.isPlayer) return;
-  feed(`Lap ${lap}: ${raceTime(t)}`, true);
-  if (lap === course.laps - 1) later(0.2, () => bigText('Final lap!', 1.4));
+  if (!c.human) return;
+  tell(c.pid, `Lap ${lap}: ${raceTime(t)}`);
+  if (lap === course.laps - 1) later(0.2, () => announce(c.pid, 'Final lap!', 1.4));
 }
+/** A car crossed the line for the last time. The race ends once every person is home (or the finish window runs out). */
 function finished(c: Car, place: number) {
   if (endT < 0) endT = FINISH_WINDOW;
-  if (c.isPlayer) { G.endT = 4; G.slowT = 1; bigText(place === 1 ? 'You win!' : `${ordinal(place)} place`, 2.5); }
-  else feed(`${c.def.driver} finishes ${ordinal(place)}`, false);
+  if (c.human) announce(c.pid, place === 1 ? 'You win!' : `${ordinal(place)} place`, 2.5);
+  emit({ kind: 'feed', to: ALL, skip: c.human ? c.pid : undefined, text: `${c.name} finishes ${ordinal(place)}` });
+  if (c.isPlayer) G.slowT = 1;
+  if (humans().every(h => h.race.finished)) G.endT = 4;
 }
 
 // ---------- bots ----------
@@ -143,14 +147,17 @@ function drive(bot: Bot) {
   }
   return { x: aim![0], z: aim![1], want };
 }
-/** A bot's top-speed scale before rubber banding: the player's car's top speed, at the difficulty's pace, give or take its own spread. */
+/**
+ * A bot's top-speed scale before rubber banding: the people's cars' top speed (their average, when several race), at
+ * the difficulty's pace, give or take its own spread.
+ */
 const paceOf = new WeakMap<Car, number>();
 function pace(c: Car): number {
   let k = paceOf.get(c);
   if (k === undefined) {
-    const p = (G.player as Car).def;
-    k = raceTop(p) * PACE[G.settings.difficulty] * (1 + rand(-SPREAD, SPREAD)) / c.def.max; paceOf.set(c, k);
-    c.accelK = Math.max(1, raceAccel(p) / c.def.accel * k); // and the acceleration to get there
+    const hs = humans(), avg = (f: (d: Car['def']) => number) => hs.reduce((a, h) => a + f(h.def), 0) / hs.length;
+    k = avg(raceTop) * PACE[G.settings.difficulty] * (1 + rand(-SPREAD, SPREAD)) / c.def.max; paceOf.set(c, k);
+    c.accelK = Math.max(1, avg(raceAccel) / c.def.accel * k); // and the acceleration to get there
   }
   return k;
 }
@@ -174,7 +181,7 @@ export const race: GameMode = {
   id: 'race', name: 'Race', startLabel: 'Start the race', againLabel: 'Race again', lights: true, unarmedHint: 'Sword plates and crates arm you',
   rivalry: 35, // bots are racing you: they'd rather shoot you than each other
   /** Bots hurt each other half as much: racing incidents shouldn't wreck the field out of contention. */
-  damageScale: (victim, by) => !victim.isPlayer && by && !by.isPlayer ? 0.5 : 1,
+  damageScale: (victim, by) => !victim.human && by && !by.human ? 0.5 : 1,
   /** Big Chill's brain freeze goes for the car just ahead of it in the race, wherever it is in sight. */
   specialTarget(c) {
     if (c.def.id !== 'bigchill') return null;
@@ -182,10 +189,10 @@ export const race: GameMode = {
     for (let j = i - 1; j >= 0; j--) { const o = order[j]; if (o.alive && !o.race.finished && Math.hypot(o.x - c.x, o.z - c.z) < 130) return o; }
     return null;
   },
-  /** Line the cars up on the grid, the player at the back like a challenger. */
+  /** Line the cars up on the grid, the people at the back like challengers. */
   setup(list, map) {
     course = map.course!; finishers = 0; spawnSlot = 0; endT = -1; leader = null;
-    const slots = course.grid(list.length), order = [...list.filter(c => !c.isPlayer), ...list.filter(c => c.isPlayer)];
+    const slots = course.grid(list.length), order = [...list.filter(c => !c.human), ...list.filter(c => c.human)];
     order.forEach((c, k) => {
       const s = slots[k]; c.reset(s.x, s.z, s.yaw);
       c.race = { progress: { ...s.progress }, finished: 0, lapStart: 0, lapTimes: [], respawnT: 0, wrongT: 0, best: 0 };
@@ -200,7 +207,7 @@ export const race: GameMode = {
         if (r.respawnT > 0 && (r.respawnT -= dt) <= 0) {
           const at = course.respawn(r.progress, spawnSlot++);
           c.respawn(at.x, at.z, at.yaw); r.progress.i = at.i; r.wrongT = 0;
-          if (c.isPlayer) bigText('Go!', 0.6);
+          if (c.human) announce(c.pid, 'Go!', 0.6);
         }
         continue;
       }
@@ -216,36 +223,37 @@ export const race: GameMode = {
       const [hx, hz] = course.heading(r.progress);
       r.wrongT = c.speed > 5 && Math.sin(c.yaw) * hx + Math.cos(c.yaw) * hz < -0.3 ? r.wrongT + dt : 0;
     }
-    // rubber banding and slipstreams; warnings; plates; the finish window
-    const p = G.player as Car & { race: RaceState }, pd = course.distance(p.race.progress);
+    // rubber banding (against the leading person) and slipstreams; warnings; plates; the finish window
+    const hs = humans(), lead = standings(hs.filter(h => !h.race.finished).length ? hs.filter(h => !h.race.finished) : hs)[0], pd = course.distance(lead.race.progress);
     const band = G.settings.rubber === 'off' ? { up: 0, down: 0, far: 0 } : RUBBER[G.settings.difficulty];
     for (const c of cars()) {
       c.draft = clamp(c.draft + (inSlipstream(c) ? dt * 2 : -dt * 2), 0, 1);
       const gap = pd - course.distance(c.race.progress), k = gap > 0 ? band.up * clamp(gap / BAND, 0, 1) + (band.far - band.up) * clamp((gap - BAND) / (2 * BAND), 0, 1) : -band.down * clamp(-gap / BAND, 0, 1);
-      c.speedK = (c.isPlayer ? raceTop(c.def) / c.def.max : pace(c) * (1 + k)) * (1 + DRAFT * c.draft);
-      if (c.isPlayer) c.accelK = raceAccel(c.def) / c.def.accel;
+      c.speedK = (c.human ? raceTop(c.def) / c.def.max : pace(c) * (1 + k)) * (1 + DRAFT * c.draft);
+      if (c.human) c.accelK = raceAccel(c.def) / c.def.accel;
     }
     leader = standings(cars())[0];
-    if (p.alive && p.race.wrongT > 1 && (G.time % 1.2) < dt) bigText('Wrong way!', 0.7);
+    if ((G.time % 1.2) < dt) for (const h of hs) if (h.alive && h.race.wrongT > 1) announce(h.pid, 'Wrong way!', 0.7);
     if (endT > 0 && G.endT < 0 && (endT -= rdt) <= 0) G.endT = 0.5;
     collectPickups(); drivePlates(RULES);
   },
   wrecked(c) {
     (c as Car & { race: RaceState }).race.respawnT = RESPAWN_DELAY; // nobody is out: back on the track shortly
-    if (c.isPlayer) { G.slowT = 0.5; bigText(`Wrecked! Back in ${RESPAWN_DELAY}`, 1.6); }
+    if (c.human) announce(c.pid, `Wrecked! Back in ${RESPAWN_DELAY}`, 1.6);
+    if (c.isPlayer) G.slowT = 0.5;
   },
   status(player) {
     const p = player as Car & { race: RaceState };
     return [`${ordinal(standings(cars()).indexOf(p) + 1)} of ${G.cars.length} · Lap ${lapOf(p)}/${course.laps}`, raceTime(Math.max(0, p.race.finished || G.clock)).slice(0, -1)];
   },
-  results() {
-    const p = G.player as Car & { race: RaceState }, order = standings(cars()), place = order.indexOf(p) + 1, first = order[0];
+  results(viewer) {
+    const p = viewer as Car & { race: RaceState }, order = standings(cars()), place = order.indexOf(p) + 1, first = order[0];
     const done = !!p.race.finished, win = place === 1 && done, s = G.clock | 0;
     return {
       order, win,
       title: win ? 'Winner' : done ? `Finished ${ordinal(place)}` : 'Out of time',
-      sub: win ? `${p.def.driver} takes ${G.map.name} in ${raceTime(p.race.finished)}.`
-        : first.race.finished ? `${first.isPlayer ? 'You' : first.def.driver} won it in ${raceTime(first.race.finished)}.` : 'Nobody made it home.',
+      sub: win ? `${p.name} takes ${G.map.name} in ${raceTime(p.race.finished)}.`
+        : first.race.finished ? `${first === p ? 'You' : first.name} won it in ${raceTime(first.race.finished)}.` : 'Nobody made it home.',
       tiles: [['Wrecks', String(p.kills)], ['Best lap', p.race.best ? raceTime(p.race.best) : '–'], ['Race time', done ? raceTime(p.race.finished) : (s / 60 | 0) + ':' + String(s % 60).padStart(2, '0')]],
       fate: c => { const r = (c as Car & { race: RaceState }).race; return r.finished ? `finished in ${raceTime(r.finished)}` : `on lap ${lapOf(c as Car & { race: RaceState })}`; },
     };

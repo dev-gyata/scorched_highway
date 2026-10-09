@@ -1,5 +1,5 @@
 // Deathmatch: free-for-all, last car running wins. Weapons come from the map's crates.
-import { bigText } from '../game/hud.js';
+import { ALL, announce } from '../engine/events';
 import { G, later } from '../game/state.js';
 import { collectPickups } from './shared';
 import type { Car, GameMode } from './types';
@@ -14,23 +14,26 @@ export const deathmatch: GameMode = {
     cars.forEach((c, i) => { const s = spots[i]; c.reset(s.x, s.z, s.yaw); c.ammo.missile = 3; c.weapon = 'missile'; });
   },
   step: () => collectPickups(),
-  wrecked(c, by) {
-    if (c.isPlayer) { G.slowT = 0.8; bigText('Wrecked!', 2); G.endT = 3.2; G.result = { by }; }
+  /** The match ends with the last car running, or once every person is out (online, the wrecked watch the rest). */
+  wrecked(c) {
+    if (c.human) announce(c.pid, 'Wrecked!', 2);
+    if (c.isPlayer) G.slowT = 0.8;
     const alive = (G.cars as Car[]).filter(o => o.alive);
-    if (G.player.alive && alive.length === 1) { G.slowT = 1.2; G.endT = 3; later(0.4, () => bigText('Last one standing!', 2.5)); }
+    if (!alive.some(o => o.human)) { if (G.endT < 0) G.endT = 3.2; }
+    else if (alive.length === 1) { G.slowT = 1.2; G.endT = 3; later(0.4, () => announce(ALL, 'Last one standing!', 2.5)); }
   },
   status: () => [(G.cars as Car[]).filter(c => c.alive).length + ' cars left', clock()],
-  results() {
-    const p = G.player as Car, cars = G.cars as Car[], win = p.alive, by: Car | null = G.result?.by || null;
+  results(p) {
+    const cars = G.cars as Car[], win = p.alive, by = p.wreckedBy;
     // cars still running (healthiest first), then the wrecks, most recent first
     const order = [...cars.filter(c => c.alive).sort((a, b) => b.hp / b.def.hp - a.hp / a.def.hp), ...cars.filter(c => !c.alive).sort((a, b) => a.place - b.place)];
     return {
       order, win,
       title: win ? 'Last one standing' : 'Wrecked',
-      sub: win ? `${p.def.driver} rolls out of town with the ${p.def.name} still smoking.`
-        : by ? `${by.def.driver} got the better of you this time.` : 'The desert got the better of you this time.',
+      sub: win ? `${p.name} rolls out of town with the ${p.def.name} still smoking.`
+        : by ? `${by.name} got the better of you this time.` : 'The desert got the better of you this time.',
       tiles: [['Wrecks', String(p.kills)], ['Damage dealt', String(Math.round(p.dealt))], ['Survived', clock()]],
-      fate: c => c.alive ? 'still running' : c.wreckedBy ? `wrecked by ${c.wreckedBy.isPlayer ? 'you' : c.wreckedBy.def.driver.split(' ')[0]}` : 'crashed out',
+      fate: c => c.alive ? 'still running' : c.wreckedBy ? `wrecked by ${c.wreckedBy === p ? 'you' : c.wreckedBy.name.split(' ')[0]}` : 'crashed out',
     };
   },
 };

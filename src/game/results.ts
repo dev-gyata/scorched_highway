@@ -19,15 +19,15 @@ export function showRecord() {
 
 /** Fill in the results screen for the match that just ended (the mode supplies the content) and add it to the career record. */
 export function showResults() {
-  const p = G.player as Car, cars = G.cars as Car[], r = (G.mode as GameMode).results(), place = r.order.indexOf(p) + 1, win = r.win;
+  const p = G.player as Car, cars = G.cars as Car[], r = (G.mode as GameMode).results(p), place = r.order.indexOf(p) + 1, win = r.win;
   const title = $('#overTitle'); title.textContent = r.title; title.classList.toggle('lost', !win);
   $('#overSub').textContent = r.sub;
   $('#againBtn').textContent = (G.mode as GameMode).againLabel;
   $('#rPlace').textContent = ordinal(place); $('#rOf').textContent = `of ${cars.length}`;
   $('#rTiles').innerHTML = r.tiles.map(([label, value]) => `<div><b>${esc(value)}</b><span>${esc(label)}</span></div>`).join('');
   $('#rStandings').innerHTML = r.order.map((c, i) => {
-    const who = c.isPlayer ? `You <small>${esc(c.def.name)}</small>` : `${esc(c.def.driver)} <small>${esc(c.def.name)}</small>`;
-    return `<li class="${c.isPlayer ? 'me' : ''}"><b>${ordinal(i + 1)}</b><i style="background:${c.def.tag}"></i><span class="who">${who}</span><span class="k">${plural(c.kills, 'wreck')}</span><span class="fate">${esc(r.fate(c))}</span></li>`;
+    const who = c === p ? `You <small>${esc(c.def.name)}</small>` : `${esc(c.name)} <small>${esc(c.def.name)}</small>`;
+    return `<li class="${c === p ? 'me' : ''}"><b>${ordinal(i + 1)}</b><i style="background:${c.def.tag}"></i><span class="who">${who}</span><span class="k">${plural(c.kills, 'wreck')}</span><span class="fate">${esc(r.fate(c))}</span></li>`;
   }).join('');
   // career record, and anything this match beat
   const c = career(), badges: string[] = [];

@@ -1,6 +1,6 @@
 import { explodeFX } from './effects.js';
+import { emit } from '../engine/events';
 import { rand } from '../engine/util.js';
-import { feed, hudHit } from '../game/hud.js';
 import { onCarKilled } from '../game/match.js';
 import { G } from '../game/state.js';
 
@@ -15,13 +15,13 @@ export const DIFF = [
 export function damageCar(c, amt, by, kind, silent) {
   if (!c.alive || amt <= 0 || G.state !== 'playing') return;
   if (G.countdown > 0) return;
-  if (c.isPlayer && by && by !== c) amt *= DIFF[G.settings.difficulty].toPlayer;
+  if (c.human && by && by !== c && !by.human) amt *= DIFF[G.settings.difficulty].toPlayer; // the difficulty eases the bots' hits on people, not people's on each other
   if (G.mode && G.mode.damageScale && by !== c) amt *= G.mode.damageScale(c, by);
   if (c.shieldT > 0 && kind !== 'fall') amt *= SHIELD_TAKES; // a shield plate's shield
   c.hp -= amt;
   if (!silent) c.flash = Math.min(0.6, c.flash + 0.35);
   if (by && by !== c) { c.lastHitBy = by; c.lastHitTime = G.time; by.dealt += amt; }
-  if (c.isPlayer && !silent) hudHit(amt);
+  if (c.human && !silent) emit({ kind: 'hit', to: c.pid, amt });
   if (c.hp <= 0) killCar(c, by && by !== c ? by : (G.time - c.lastHitTime < 6 ? c.lastHitBy : null), kind);
 }
 function killCar(c, by, kind) {
@@ -32,11 +32,7 @@ function killCar(c, by, kind) {
   for (const o of G.cars) if (o !== c && o.alive) { const d = Math.hypot(o.x - c.x, o.z - c.z); if (d < 8) { damageCar(o, 14 * (1 - d / 8), by || null, 'blast'); knock(o, c.x, c.z, 10 * (1 - d / 8), 5); } }
   if (by) by.kills++;
   c.place = G.cars.filter(o => o.alive).length + 1;
-  const vName = c.isPlayer ? 'You' : c.def.driver;
-  let msg;
-  if (!by) msg = kind === 'fall' ? vName + ' came down too hard' : kind === 'truck' ? vName + ' got flattened by the truck' : kind === 'rock' ? vName + ' got buried in the rockfall' : vName + (c.isPlayer ? ' wrecked yourself' : ' wrecked themselves');
-  else msg = (by.isPlayer ? 'You' : by.def.driver) + ' wrecked ' + (c.isPlayer ? 'you' : c.def.driver);
-  feed(msg, (by && by.isPlayer) || c.isPlayer);
+  emit({ kind: 'wreck', victim: c.pid, by: by ? by.pid : -1, how: kind }); // the feed words it for each screen (game/hud.js)
   onCarKilled(c, by);
 }
 export function knock(c, fromX, fromZ, power, up) {

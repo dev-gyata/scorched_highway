@@ -10,6 +10,7 @@ import { tickCarWeapons, updateMines, updateProjectiles } from '../combat/weapon
 import { clearDebris } from '../engine/debris.js';
 import { PSYS } from '../engine/particles.js';
 import { camera, renderer, scene } from '../engine/renderer.js';
+import { announce } from '../engine/events';
 import { applyTod } from '../engine/sky';
 import { $ } from '../engine/util.js';
 import { CAM } from './camera.js';
@@ -20,7 +21,7 @@ import { showResults } from './results';
 import { MENU_MAP, allMaps, getMap } from '../maps/registry';
 import { allModes, getMode } from '../modes/registry';
 import { G } from './state.js';
-import { KEYS, readPlayerInput } from '../input/input.js';
+import { KEYS, applyControls, newControls, readControls } from '../input/input.js';
 import { clearHazards, updateHazards } from '../world/hazards';
 import { resetPickups, updatePickups } from '../world/pickups';
 import { resetPlates, updatePlates } from '../world/plates';
@@ -43,23 +44,36 @@ export function clearMatch() {
   resetProps(); resetPickups(); resetPlates(); clearHazards();
   hud.tags.innerHTML = ''; TAGS.length = 0; hud.feed.innerHTML = '';
 }
-export function startMatch() {
+/**
+ * Who drives in a match: one entry per car, in pid order. `human` cars are driven by people (`local` is the one at
+ * this screen); the rest get a bot.
+ * @typedef {{ car: string, human: boolean, local?: boolean, name?: string }} Seat
+ */
+/** A single-player match: you in the car you picked, and bots in the others. @returns {Seat[]} */
+export function soloRoster() {
+  const pdef = CAR_BY_ID[G.settings.car] || CARS[0];
+  const others = CARS.filter(d => d !== pdef).sort(() => Math.random() - 0.5).slice(0, G.settings.opponents);
+  return [{ car: pdef.id, human: true, local: true }, ...others.map(d => ({ car: d.id, human: false }))];
+}
+/** Start a match with the chosen mode and map; `roster` says who drives (online play passes its own). @param {Seat[]} [roster] */
+export function startMatch(roster = soloRoster()) {
   ensureAudio();
   clearShowcase(); clearMatch(); camera.clearViewOffset();
   applyTod(G.settings.tod);
   const { mode, map } = chosen(); G.mode = mode; G.map = map;
   if (!map.isBuilt()) { const t = performance.now(); map.build(G.settings.quality === 'low'); performance.measure('map:build', { start: t }); }
-  const pdef = CAR_BY_ID[G.settings.car] || CARS[0];
-  const others = CARS.filter(d => d !== pdef).sort(() => Math.random() - 0.5).slice(0, G.settings.opponents);
   const diff = DIFF[G.settings.difficulty];
-  [pdef, ...others].forEach((d, i) => {
-    const c = new Car(d, i === 0); c.speedK = i === 0 ? 1 : diff.speed;
-    G.cars.push(c); if (i > 0) G.ais.push(new AI(c)); else G.player = c;
+  roster.forEach((s, pid) => {
+    const def = CAR_BY_ID[s.car] || CARS[0], c = new Car(def, { human: s.human, name: s.name || def.driver, pid });
+    c.speedK = s.human ? 1 : diff.speed;
+    G.cars.push(c);
+    if (s.human) c.ctl = newControls(); else G.ais.push(new AI(c));
+    if (s.local) G.player = c;
   });
   mode.setup(G.cars, map);
   G.time = 0; G.clock = 0; G.countdown = 3.2; G.endT = -1; G.result = null; G.slowT = 0; G.timeScale = 1; G.shake = 0;
   const p = G.player; CAM.yaw = p.yaw; CAM.x = p.x - Math.sin(p.yaw) * 30; CAM.z = p.z - Math.cos(p.yaw) * 30; CAM.y = p.y + 14;
-  hud.cache = {}; hud.hName.textContent = pdef.name; hud.hName.style.color = pdef.tag;
+  hud.cache = {}; hud.hName.textContent = p.def.name; hud.hName.style.color = p.def.tag;
   buildTags(); show(null); $('#hud').hidden = false; G.state = 'playing'; lastCount = 4;
   resize();
   renderer.compile(scene, camera); // compile every shader now (pooled effects included) instead of stuttering when they first appear
@@ -68,7 +82,8 @@ let lastCount = 4;
 /** A car has been wrecked: the mode decides what that means. */
 export function onCarKilled(c, by) {
   c.wreckedBy = by || null;
-  if (by && by.isPlayer) { G.slowT = Math.max(G.slowT, 0.55); bigText('Wrecked ' + c.def.driver.split(' ')[0] + '!', 1.1, true); }
+  if (by && by.human && by !== c) announce(by.pid, 'Wrecked ' + c.name.split(' ')[0] + '!', 1.1, true);
+  if (by && by.isPlayer) G.slowT = Math.max(G.slowT, 0.55);
   G.mode.wrecked(c, by || null);
 }
 function endMatch() {
@@ -90,7 +105,11 @@ export function step(dt, rdt) {
     if (n !== lastCount) { lastCount = n; if (n > 0) { bigText(String(n), 0.8); playSfx('beep'); } else { bigText('Go!', 0.8); playSfx('go'); } }
   } else G.clock += dt;
   G.time += dt;
-  if (p.alive && G.state === 'playing') readPlayerInput(p, dt); else { p.mgHeld = p.wHeld = false; p.input.throttle = 0; p.input.steer = 0; }
+  if (G.state === 'playing' && p.alive && p.ctl) readControls(p, dt, p.ctl); // this screen's driver; others' controls come from afar (src/net)
+  for (const c of G.cars) {
+    if (!c.human || !c.ctl) continue;
+    if (c.alive && G.state === 'playing') applyControls(c, c.ctl); else { c.mgHeld = c.wHeld = false; c.input.throttle = 0; c.input.steer = 0; }
+  }
   if (G.countdown > 0) { for (const c of G.cars) { c.input.throttle = 0; c.input.steer = 0; c.input.handbrake = true; } if (p.alive) { p.wFire = false; p.sFire = false; } }
   for (const ai of G.ais) ai.update(dt);
   if (G.countdown > 0) for (const c of G.cars) { c.input.throttle = 0; c.input.handbrake = true; c.wFire = false; c.sFire = false; }

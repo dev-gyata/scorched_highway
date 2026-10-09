@@ -4,9 +4,9 @@ import { DIFF, damageCar, knock } from './damage.js';
 import { explode, ring, sparks } from './effects.js';
 import { COMBOS, COMBO_COST, CONE, RANGE, WEAPON_ORDER } from './arsenal';
 import { MINES, PROJ, SMOKES, takeMesh } from './pools.js';
+import { announce } from '../engine/events';
 import { FX_ADD, FX_SMOKE, fxScale } from '../engine/particles.js';
 import { TAU, _v1, _v2, angDiff, clamp, rand } from '../engine/util.js';
-import { bigText } from '../game/hud.js';
 import { G, shake } from '../game/state.js';
 import { lineOfSight, outOfBounds, pointBlocked } from '../world/collision.js';
 import { mapAt } from '../maps/registry';
@@ -58,7 +58,7 @@ function aimAt(from, target, speed, err, out) {
   return out;
 }
 function jitter(v, err) { v.x += rand(-err, err); v.y += rand(-err, err) * 0.4; v.z += rand(-err, err); return v.normalize(); }
-function carAim(c) { return c.isPlayer ? 0 : DIFF[G.settings.difficulty].aim; }
+function carAim(c) { return c.human ? 0 : DIFF[G.settings.difficulty].aim; }
 
 // ================= firing =================
 const _mz = new THREE.Vector3(), _dir = new THREE.Vector3();
@@ -202,7 +202,7 @@ function fireWeapon(c, combo) {
       break;
     }
   }
-  if (combo && c.isPlayer) bigText(COMBOS[w][combo - 1] + '!', 0.9, true);
+  if (combo && c.human) announce(c.pid, COMBOS[w][combo - 1] + '!', 0.9, true);
   if (c.ammo[w] <= 0.01) { c.ammo[w] = 0; autoSwitch(c); }
   return true;
 }
@@ -279,7 +279,7 @@ function fireSpecial(c) {
     }
     case 'scorcher': {
       c.boost = 1.8; playSfx('whoosh', c.x, c.z, 1);
-      if (c.isPlayer) bigText('Afterburner!', 0.8, true);
+      if (c.human) announce(c.pid, 'Afterburner!', 0.8, true);
       break;
     }
     case 'lawdog': {
@@ -310,7 +310,7 @@ export function tickCarWeapons(c, dt) {
   if (!c.alive || G.countdown > 0) { c.flameOn = false; return; }
   if (c.mgHeld && c.cdMG <= 0 && !c.mgLocked) fireMG(c);
   if (c.wFire) { fireWeapon(c, c.wCombo); c.wFire = false; c.wCombo = 0; }
-  else if (c.wHeld && c.weapon && c.weapon !== 'flame' && c.cdW <= 0 && c.isPlayer) fireWeapon(c, 0);
+  else if (c.wHeld && c.weapon && c.weapon !== 'flame' && c.cdW <= 0 && c.human) fireWeapon(c, 0); // people can hold fire down
   c.flameOn = !!(c.wHeld && c.weapon === 'flame' && c.ammo.flame > 0 && c.cdW <= 0);
   if (c.flameOn) flameTick(c, dt);
   if (c.sFire) { fireSpecial(c); c.sFire = false; }
