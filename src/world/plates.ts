@@ -4,6 +4,9 @@
 // Every plate of every map is one instance of two meshes: the plate face and its glow.
 import * as THREE from 'three';
 import { addToScene } from '../engine/renderer.js';
+import { registerState } from '../engine/savestate';
+import { G } from '../game/state.js';
+import { mapAt } from '../maps/registry';
 import { TAU } from '../engine/util.js';
 import { drawGlyph, rrect } from './glyphs';
 import { ground } from './terrain.js';
@@ -94,6 +97,12 @@ function paint() {
   if (face) { face.instanceColor!.needsUpdate = true; glow!.instanceColor!.needsUpdate = true; }
 }
 export function resetPlates() { for (const p of PLATES) { p.armed = true; p.t = 0; } if (face) paint(); }
+/** Show plates as the online host has them, armed or dark (they don't re-arm by themselves here). */
+export function mirrorPlates(list: Plate[], armed: boolean[]) {
+  let changed = false;
+  list.forEach((p, i) => { const a = !!armed[i]; if (p.armed !== a) { p.armed = a; changed = true; } p.t = a ? 0 : Infinity; });
+  if (changed) paint();
+}
 /** Re-arm plates whose time is up; the glow breathes. */
 export function updatePlates(dt: number, time: number) {
   let changed = false;
@@ -101,6 +110,12 @@ export function updatePlates(dt: number, time: number) {
   if (changed) paint();
   if (glow) (glow.material as THREE.MeshBasicMaterial).opacity = 0.55 + 0.35 * Math.sin(time * 5);
 }
+// for a new host carrying the match on (engine/savestate): when each dark plate on this map lights up again
+const here = () => PLATES.filter(p => mapAt(p.x) === G.map);
+registerState('plates', {
+  save: () => here().map(p => p.t),
+  load: (d: unknown) => here().forEach((p, i) => { if (!p.armed) p.t = (d as number[])[i] ?? PLATE_REARM[p.type]; }),
+});
 /** The armed plate a car at (x, y, z) is on, if any; it goes dark. */
 export function takePlate(x: number, y: number, z: number): Plate | null {
   for (const p of PLATES) {

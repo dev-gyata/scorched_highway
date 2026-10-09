@@ -4,7 +4,8 @@ import { DIFF, damageCar, knock } from './damage.js';
 import { explode, ring, sparks } from './effects.js';
 import { COMBOS, COMBO_COST, CONE, RANGE, WEAPON_ORDER } from './arsenal';
 import { MINES, PROJ, SMOKES, takeMesh } from './pools.js';
-import { announce } from '../engine/events';
+import { announce, effect } from '../engine/events';
+import { registerState } from '../engine/savestate';
 import { FX_ADD, FX_SMOKE, fxScale } from '../engine/particles.js';
 import { TAU, _v1, _v2, angDiff, clamp, rand } from '../engine/util.js';
 import { G, shake } from '../game/state.js';
@@ -62,7 +63,11 @@ function carAim(c) { return c.human ? 0 : DIFF[G.settings.difficulty].aim; }
 
 // ================= firing =================
 const _mz = new THREE.Vector3(), _dir = new THREE.Vector3();
-function spawnProj(o) { o.age = 0; if (o.meshName) o.mesh = takeMesh(o.meshName); PROJ.push(o); return o; }
+let projSeq = 0;
+/** A projectile in flight; `id` names it the same on every screen online (src/net). */
+function spawnProj(o) { o.age = 0; o.id = projSeq = (projSeq + 1) & 0xffff; if (o.meshName) o.mesh = takeMesh(o.meshName); PROJ.push(o); return o; }
+/** A gun's flash at the muzzle, moving with the car. */
+const muzzle = effect('muzzle', (x, y, z, vx, vy, vz, life, size, end, color) => FX_ADD.spawn(x, y, z, vx, vy, vz, life, size, end, 0xfff0b0, color, 1, 0, 0));
 function fireMG(c) {
   c.cdMG = 0.095; c.gunSide *= -1;
   const d = c.def;
@@ -70,7 +75,7 @@ function fireMG(c) {
   const t = findTarget(c, RANGE.mg, CONE.mg, true);
   if (t) aimAt(_mz, t, 150, carAim(c) + 0.012, _dir); else { c.worldDir(0, 0.01, 1, _dir); jitter(_dir, 0.012); }
   spawnProj({ type: 'bullet', meshName: 'bullet', x: _mz.x, y: _mz.y, z: _mz.z, vx: _dir.x * 150 + c.vx, vy: _dir.y * 150, vz: _dir.z * 150 + c.vz, owner: c, life: 0.6, dmg: 1.2, r: 0.3 });
-  FX_ADD.spawn(_mz.x, _mz.y, _mz.z, c.vx, c.vy, c.vz, 0.05, 1.2, 0.4, 0xfff0b0, 0xffa040, 1, 0, 0);
+  muzzle(_mz.x, _mz.y, _mz.z, c.vx, c.vy, c.vz, 0.05, 1.2, 0.4, 0xffa040);
   playSfx('gun', c.x, c.z, 0.5);
 }
 function fireMissile(c, dirOff, target) {
@@ -90,7 +95,7 @@ function fireRocket(c, off, back) {
   if (t) aimAt(_mz, t, 95, carAim(c) * 0.5, _dir); else c.worldDir(0, 0.01, back ? -1 : 1, _dir);
   if (off) turnDir(_dir, off);
   spawnProj({ type: 'rocket', meshName: 'rocket', x: _mz.x, y: _mz.y, z: _mz.z, vx: _dir.x * 95 + c.vx, vy: _dir.y * 95, vz: _dir.z * 95 + c.vz, owner: c, life: 1.1, dmg: 14, r: 0.4 });
-  FX_ADD.spawn(_mz.x, _mz.y, _mz.z, c.vx, 0, c.vz, 0.08, 1.4, 0.5, 0xfff0b0, 0xff8030, 1, 0, 0);
+  muzzle(_mz.x, _mz.y, _mz.z, c.vx, 0, c.vz, 0.08, 1.4, 0.5, 0xff8030);
 }
 /** Flares that every homing weapon chasing `c` (and any fired at it while they burn) goes after instead. */
 function fireDecoy(c) {
@@ -117,15 +122,17 @@ function fireShell(c, tx, tz, smoke) {
   const g = 30, v0 = Math.sqrt(D * g), vh = v0 * 0.7071, dy = ground(tx, tz) - _mz.y;
   const flight = D / vh; const vy = v0 * 0.7071 + dy / flight;
   spawnProj({ type: smoke ? 'smokeshell' : 'shell', meshName: 'shell', x: _mz.x, y: _mz.y, z: _mz.z, vx: dx / D * vh, vy, vz: dz / D * vh, grav: g, owner: c, life: 6, dmg: 22, rad: 6.5, r: 0.5 });
-  FX_SMOKE.spawn(_mz.x, _mz.y + 0.4, _mz.z, 0, 4, 0, 0.8, 1, 3, 0x6a5a58, 0x9a8a88, 0.6, 1, 0);
+  mortarPuff(_mz.x, _mz.y, _mz.z);
   playSfx('thump', c.x, c.z, 0.8);
 }
 /** A smoke cloud: homing weapons lose anything inside it or behind it. */
 function addSmoke(x, z) {
-  SMOKES.push({ x, z, r: 11, t: 6 });
+  smokeCloud(x, z);
   for (const p of PROJ) if (p.turn && p.target && !p.target.inert && Math.hypot(p.target.x - x, p.target.z - z) < 11) p.target = null;
 }
-function updateSmoke(dt) {
+const smokeCloud = effect('smoke', (x, z) => { SMOKES.push({ x, z, r: 11, t: 6 }); });
+/** Smoke clouds billow and thin out (online guests run this too: their own lock-ons can't see through smoke either). */
+export function updateSmoke(dt) {
   for (let i = SMOKES.length - 1; i >= 0; i--) {
     const s = SMOKES[i]; s.t -= dt; if (s.t <= 0) { SMOKES.splice(i, 1); continue; }
     const fade = Math.min(1, s.t / 1.5);
@@ -135,6 +142,7 @@ function updateSmoke(dt) {
     }
   }
 }
+const mortarPuff = effect('mortar', (x, y, z) => FX_SMOKE.spawn(x, y + 0.4, z, 0, 4, 0, 0.8, 1, 3, 0x6a5a58, 0x9a8a88, 0.6, 1, 0));
 function dropMine(c, ox, oz) {
   const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw);
   const x = c.x - fx * 3 + (ox || 0), z = c.z - fz * 3 + (oz || 0);
@@ -194,7 +202,7 @@ function fireWeapon(c, combo) {
         spawnProj({ type: 'fireball', meshName: 'fireball', x: _mz.x, y: _mz.y, z: _mz.z, vx: _dir.x * 34 + c.vx * 0.5, vy: _dir.y * 34, vz: _dir.z * 34 + c.vz * 0.5, owner: c, life: 2.2, r: 1, dmg: 28 });
         spend(COMBO_COST); c.cdW = 1; playSfx('whoosh', c.x, c.z, 0.9);
       } else if (combo === 2) {
-        for (let i = 0; i < 70 * fxScale; i++) { const a = i / 70 * TAU; FX_ADD.spawn(c.x + Math.sin(a) * 2, c.y + 1, c.z + Math.cos(a) * 2, Math.sin(a) * 22, rand(0, 3), Math.cos(a) * 22, rand(0.35, 0.55), 1.2, 3.5, 0xffe070, 0xff3010, 0.9, 2.5, -2); }
+        fireRing(c.x, c.y, c.z);
         for (const o of G.cars) if (o !== c && o.alive) { const d = Math.hypot(o.x - c.x, o.z - c.z); if (d < 11) { damageCar(o, 24 * (1 - d / 14), c, 'fire'); o.burning = Math.max(o.burning, 2.5); o.burnBy = c; knock(o, c.x, c.z, 8, 3); } }
         for (const p of PROPS) if (p.alive && Math.hypot(p.x - c.x, p.z - c.z) < 11) damageProp(p, 30, c);
         spend(COMBO_COST); c.cdW = 1; playSfx('whoosh', c.x, c.z, 1);
@@ -206,6 +214,9 @@ function fireWeapon(c, combo) {
   if (c.ammo[w] <= 0.01) { c.ammo[w] = 0; autoSwitch(c); }
   return true;
 }
+const fireRing = effect('firering', (x, y, z) => {
+  for (let i = 0; i < 70 * fxScale; i++) { const a = i / 70 * TAU; FX_ADD.spawn(x + Math.sin(a) * 2, y + 1, z + Math.cos(a) * 2, Math.sin(a) * 22, rand(0, 3), Math.cos(a) * 22, rand(0.35, 0.55), 1.2, 3.5, 0xffe070, 0xff3010, 0.9, 2.5, -2); }
+});
 /** Mine set off under your own car: you're spared, everyone close is thrown clear, and enemy mines nearby are disarmed. */
 function kickback(c) {
   for (let i = MINES.length - 1; i >= 0; i--) { const m = MINES[i]; if (m.owner !== c && Math.hypot(m.x - c.x, m.z - c.z) < 12) { m.dead = true; m.mesh.visible = false; MINES.splice(i, 1); sparks(m.x, m.y + 0.3, m.z, 5); } }
@@ -228,8 +239,8 @@ export function cycleWeapon(c, dir) {
   const n = WEAPON_ORDER.length;
   for (let k = 1; k <= n; k++) { const w = WEAPON_ORDER[(i0 + dir * k + n * 2) % n]; if (c.ammo[w] > 0.01) { c.weapon = w; playSfx('click', c.x, c.z, 0.5); return; } }
 }
-function flameTick(c, dt) {
-  c.ammo.flame -= dt; if (c.ammo.flame <= 0) { c.ammo.flame = 0; c.flameOn = false; autoSwitch(c); return; }
+/** The torch's flames, for a car with it lit (online guests draw it for every car the host says is burning one). */
+export function flameFX(c) {
   const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw);
   c.worldPoint(0, c.def.gunY, c.def.front + 0.3, _mz);
   for (let i = 0; i < 3 * fxScale; i++) {
@@ -237,6 +248,11 @@ function flameTick(c, dt) {
     FX_ADD.spawn(_mz.x, _mz.y, _mz.z, Math.sin(a) * s + c.vx, rand(-0.5, 2.5), Math.cos(a) * s + c.vz, rand(0.35, 0.5), 0.6, 3.8, 0xfff0a0, 0xff3010, 0.85, 1.8, -3);
   }
   if (Math.random() < 0.3 * fxScale) FX_SMOKE.spawn(_mz.x + fx * 12, _mz.y + 1.5, _mz.z + fz * 12, fx * 4, 3, fz * 4, 1.2, 2, 5, 0x3a3035, 0x7a6a68, 0.35, 1, -1);
+}
+function flameTick(c, dt) {
+  c.ammo.flame -= dt; if (c.ammo.flame <= 0) { c.ammo.flame = 0; c.flameOn = false; autoSwitch(c); return; }
+  const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw);
+  flameFX(c);
   for (const o of G.cars) {
     if (o === c || !o.alive) continue;
     const dx = o.x - c.x, dz = o.z - c.z, d = Math.hypot(dx, dz); if (d > 15) continue;
@@ -256,7 +272,7 @@ function fireSpecial(c) {
         c.worldPoint(d.gunX * s, d.gunY + 0.1, d.front + 0.2, _mz);
         if (t) aimAt(_mz, t, 120, carAim(c), _dir); else c.worldDir(0, 0.01, 1, _dir);
         spawnProj({ type: 'cannon', meshName: 'cannon', x: _mz.x, y: _mz.y, z: _mz.z, vx: _dir.x * 120 + c.vx, vy: _dir.y * 120, vz: _dir.z * 120 + c.vz, owner: c, life: 1.2, dmg: 15, r: 0.5 });
-        FX_ADD.spawn(_mz.x, _mz.y, _mz.z, c.vx, 0, c.vz, 0.1, 2.5, 1, 0xfff0b0, 0xff8030, 1, 0, 0);
+        muzzle(_mz.x, _mz.y, _mz.z, c.vx, 0, c.vz, 0.1, 2.5, 1, 0xff8030);
       }
       c.vx -= fx * 4; c.vz -= fz * 4; playSfx('cannon', c.x, c.z, 1); break;
     }
@@ -269,13 +285,12 @@ function fireSpecial(c) {
       playSfx('thump', c.x, c.z, 1); break;
     }
     case 'moonbeam': {
-      ring(c.x, c.y + 1, c.z, 24, 0.6, 0xd8a0ff); ring(c.x, c.y + 0.5, c.z, 16, 0.45, 0xffe0a0);
+      sonicBlast(c.x, c.y, c.z);
       shatterRocks(c.x, c.z, 24); // and shakes any fallen boulders to rubble
-      for (let i = 0; i < 40 * fxScale; i++) { const a = i / 40 * TAU; FX_ADD.spawn(c.x, c.y + 1.2, c.z, Math.sin(a) * 38, rand(0, 4), Math.cos(a) * 38, 0.45, 1.5, 0.3, 0xe0b0ff, 0x7040ff, 0.9, 3, 0); }
       for (const o of G.cars) if (o !== c) { const dd = Math.hypot(o.x - c.x, o.z - c.z); if (dd < 22) { const f = 1 - dd / 26; if (o.alive) damageCar(o, 22 * f, c, 'sonic'); knock(o, c.x, c.z, 34 * f, 12 * f); } }
       for (const p of PROPS) if (p.alive && Math.hypot(p.x - c.x, p.z - c.z) < 20) breakProp(p, c);
       for (const m of MINES) if (Math.hypot(m.x - c.x, m.z - c.z) < 20) m.fuse = 0.2;
-      shake(c.x, c.z, 0.8); playSfx('sonic', c.x, c.z, 1); break;
+      break;
     }
     case 'scorcher': {
       c.boost = 1.8; playSfx('whoosh', c.x, c.z, 1);
@@ -290,7 +305,7 @@ function fireSpecial(c) {
         _v2.copy(_dir); jitter(_v2, 0.16);
         spawnProj({ type: 'bullet', meshName: 'bullet', x: _mz.x, y: _mz.y, z: _mz.z, vx: _v2.x * 130 + c.vx, vy: _v2.y * 130, vz: _v2.z * 130 + c.vz, owner: c, life: 0.3, dmg: 4.2, r: 0.45, knock: 2 });
       }
-      FX_ADD.spawn(_mz.x, _mz.y, _mz.z, c.vx, 0, c.vz, 0.12, 3.5, 1, 0xfff0b0, 0xff8030, 1, 0, 0);
+      muzzle(_mz.x, _mz.y, _mz.z, c.vx, 0, c.vz, 0.12, 3.5, 1, 0xff8030);
       c.vx -= fx * 3; c.vz -= fz * 3; playSfx('cannon', c.x, c.z, 0.9); break;
     }
     case 'bigchill': {
@@ -303,6 +318,13 @@ function fireSpecial(c) {
   }
   return true;
 }
+
+/** Moonbeam's good vibrations: two rings, a burst and a boom. */
+const sonicBlast = effect('sonic', (x, y, z) => {
+  ring(x, y + 1, z, 24, 0.6, 0xd8a0ff); ring(x, y + 0.5, z, 16, 0.45, 0xffe0a0);
+  for (let i = 0; i < 40 * fxScale; i++) { const a = i / 40 * TAU; FX_ADD.spawn(x, y + 1.2, z, Math.sin(a) * 38, rand(0, 4), Math.cos(a) * 38, 0.45, 1.5, 0.3, 0xe0b0ff, 0x7040ff, 0.9, 3, 0); }
+  shake(x, z, 0.8); playSfx('sonic', x, z, 1);
+});
 
 // ================= per-frame weapons =================
 export function tickCarWeapons(c, dt) {
@@ -368,31 +390,34 @@ export function updateProjectiles(dt) {
       }
     }
     if (done) { if (p.mesh) p.mesh.visible = false; p.alive = false; PROJ.splice(i, 1); continue; }
-    // visuals
-    if (p.mesh) {
-      p.mesh.position.set(p.x, p.y, p.z);
-      if (p.type === 'scrap' || p.type === 'shell' || p.type === 'smokeshell' || p.type === 'minetoss' || p.type === 'ice' || p.type === 'flare') { p.mesh.rotation.x += dt * 8; p.mesh.rotation.y += dt * 5; }
-      else { _v1.set(p.x + p.vx, p.y + p.vy, p.z + p.vz); p.mesh.lookAt(_v1); }
-    }
-    if (p.type === 'missile') {
-      FX_SMOKE.spawn(p.x, p.y, p.z, rand(-0.5, 0.5), rand(0, 1), rand(-0.5, 0.5), rand(0.7, 1.1), 0.5, 2.2, 0xd8d0c8, 0xa89a98, 0.55, 1, -0.5);
-      FX_ADD.spawn(p.x - p.vx * 0.012, p.y - p.vy * 0.012, p.z - p.vz * 0.012, 0, 0, 0, 0.08, 1, 0.3, 0xfff0a0, 0xff6020, 1, 0, 0);
-    } else if (p.type === 'rocket') {
-      FX_ADD.spawn(p.x - p.vx * 0.01, p.y - p.vy * 0.01, p.z - p.vz * 0.01, 0, 0, 0, 0.06, 0.8, 0.2, 0xfff0a0, 0xff7020, 1, 0, 0);
-      if (Math.random() < 0.5 * fxScale) FX_SMOKE.spawn(p.x, p.y, p.z, 0, 0.5, 0, 0.6, 0.4, 1.4, 0xd8d0c8, 0xb0a8a0, 0.4, 1, 0);
-    } else if (p.type === 'flare') {
-      for (let k = 0; k < 2 * fxScale; k++) FX_ADD.spawn(p.x, p.y, p.z, rand(-1.5, 1.5), rand(0, 2), rand(-1.5, 1.5), 0.3, 0.7, 0.15, 0xffffff, 0xff6040, 1, 1, 0);
-      if (Math.random() < 0.5 * fxScale) FX_SMOKE.spawn(p.x, p.y, p.z, 0, 1.5, 0, 1.5, 0.6, 2.5, 0xe8e0d8, 0xc8c0b8, 0.5, 1, -0.4);
-    } else if (p.type === 'shell' || p.type === 'smokeshell') {
-      if (Math.random() < 0.6 * fxScale) FX_SMOKE.spawn(p.x, p.y, p.z, 0, 0, 0, 0.6, 0.5, 1.4, 0x8a7a78, 0xb0a8a0, 0.4, 0, 0);
-    } else if (p.type === 'fireball') {
-      for (let k = 0; k < 2 * fxScale; k++) FX_ADD.spawn(p.x + rand(-0.6, 0.6), p.y + rand(-0.6, 0.6), p.z + rand(-0.6, 0.6), rand(-2, 2), rand(0, 3), rand(-2, 2), rand(0.25, 0.45), 2.4, 0.4, 0xffe070, 0xff2a10, 0.9, 1, -2);
-      if (p.mesh) p.mesh.scale.setScalar(1 + Math.sin(p.age * 30) * 0.15);
-    } else if (p.type === 'ice') {
-      if (Math.random() < 0.7 * fxScale) FX_ADD.spawn(p.x, p.y, p.z, rand(-1, 1), rand(-1, 1), rand(-1, 1), 0.5, 0.8, 0.1, 0xd8f8ff, 0x4f8aff, 0.9, 0, 0);
-    } else if (p.type === 'cannon') {
-      FX_ADD.spawn(p.x, p.y, p.z, 0, 0, 0, 0.12, 0.9, 0.2, 0xfff0b0, 0xff8030, 0.8, 0, 0);
-    }
+    projectileLook(p, dt);
+  }
+}
+/** A projectile's mesh and trail (online guests draw the host's projectiles with it). */
+export function projectileLook(p, dt) {
+  if (p.mesh) {
+    p.mesh.position.set(p.x, p.y, p.z);
+    if (p.type === 'scrap' || p.type === 'shell' || p.type === 'smokeshell' || p.type === 'minetoss' || p.type === 'ice' || p.type === 'flare') { p.mesh.rotation.x += dt * 8; p.mesh.rotation.y += dt * 5; }
+    else { _v1.set(p.x + p.vx, p.y + p.vy, p.z + p.vz); p.mesh.lookAt(_v1); }
+  }
+  if (p.type === 'missile') {
+    FX_SMOKE.spawn(p.x, p.y, p.z, rand(-0.5, 0.5), rand(0, 1), rand(-0.5, 0.5), rand(0.7, 1.1), 0.5, 2.2, 0xd8d0c8, 0xa89a98, 0.55, 1, -0.5);
+    FX_ADD.spawn(p.x - p.vx * 0.012, p.y - p.vy * 0.012, p.z - p.vz * 0.012, 0, 0, 0, 0.08, 1, 0.3, 0xfff0a0, 0xff6020, 1, 0, 0);
+  } else if (p.type === 'rocket') {
+    FX_ADD.spawn(p.x - p.vx * 0.01, p.y - p.vy * 0.01, p.z - p.vz * 0.01, 0, 0, 0, 0.06, 0.8, 0.2, 0xfff0a0, 0xff7020, 1, 0, 0);
+    if (Math.random() < 0.5 * fxScale) FX_SMOKE.spawn(p.x, p.y, p.z, 0, 0.5, 0, 0.6, 0.4, 1.4, 0xd8d0c8, 0xb0a8a0, 0.4, 1, 0);
+  } else if (p.type === 'flare') {
+    for (let k = 0; k < 2 * fxScale; k++) FX_ADD.spawn(p.x, p.y, p.z, rand(-1.5, 1.5), rand(0, 2), rand(-1.5, 1.5), 0.3, 0.7, 0.15, 0xffffff, 0xff6040, 1, 1, 0);
+    if (Math.random() < 0.5 * fxScale) FX_SMOKE.spawn(p.x, p.y, p.z, 0, 1.5, 0, 1.5, 0.6, 2.5, 0xe8e0d8, 0xc8c0b8, 0.5, 1, -0.4);
+  } else if (p.type === 'shell' || p.type === 'smokeshell') {
+    if (Math.random() < 0.6 * fxScale) FX_SMOKE.spawn(p.x, p.y, p.z, 0, 0, 0, 0.6, 0.5, 1.4, 0x8a7a78, 0xb0a8a0, 0.4, 0, 0);
+  } else if (p.type === 'fireball') {
+    for (let k = 0; k < 2 * fxScale; k++) FX_ADD.spawn(p.x + rand(-0.6, 0.6), p.y + rand(-0.6, 0.6), p.z + rand(-0.6, 0.6), rand(-2, 2), rand(0, 3), rand(-2, 2), rand(0.25, 0.45), 2.4, 0.4, 0xffe070, 0xff2a10, 0.9, 1, -2);
+    if (p.mesh) p.mesh.scale.setScalar(1 + Math.sin(p.age * 30) * 0.15);
+  } else if (p.type === 'ice') {
+    if (Math.random() < 0.7 * fxScale) FX_ADD.spawn(p.x, p.y, p.z, rand(-1, 1), rand(-1, 1), rand(-1, 1), 0.5, 0.8, 0.1, 0xd8f8ff, 0x4f8aff, 0.9, 0, 0);
+  } else if (p.type === 'cannon') {
+    FX_ADD.spawn(p.x, p.y, p.z, 0, 0, 0, 0.12, 0.9, 0.2, 0xfff0b0, 0xff8030, 0.8, 0, 0);
   }
 }
 function impact(p, car, prop) {
@@ -425,6 +450,20 @@ function impact(p, car, prop) {
     }
   }
 }
+// for a new host carrying the match on (engine/savestate): projectiles and mines, cars named by pid
+const pidOf = c => (c && c.pid != null ? c.pid : -1), carOf = pid => (pid >= 0 ? G.cars[pid] || null : null);
+registerState('shots', {
+  save: () => ({
+    proj: PROJ.map(({ mesh, owner, target, ...p }) => ({ ...p, owner: pidOf(owner), target: target && !target.inert ? pidOf(target) : -1 })),
+    mines: MINES.map(({ mesh, owner, ...m }) => ({ ...m, owner: pidOf(owner) })),
+  }),
+  load({ proj, mines }) {
+    for (const p of PROJ) if (p.mesh) p.mesh.visible = false; PROJ.length = 0;
+    for (const m of MINES) m.mesh.visible = false; MINES.length = 0;
+    for (const p of proj) { PROJ.push({ ...p, owner: carOf(p.owner), target: carOf(p.target), mesh: p.meshName ? takeMesh(p.meshName) : null }); projSeq = Math.max(projSeq, p.id); }
+    for (const m of mines) { const mesh = takeMesh('mine'); mesh.position.set(m.x, m.y, m.z); MINES.push({ ...m, owner: carOf(m.owner), mesh }); }
+  },
+});
 export function updateMines(dt, t) {
   for (let i = MINES.length - 1; i >= 0; i--) {
     const m = MINES[i];

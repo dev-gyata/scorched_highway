@@ -11,6 +11,7 @@ import { clearDebris } from '../engine/debris.js';
 import { PSYS } from '../engine/particles.js';
 import { camera, renderer, scene } from '../engine/renderer.js';
 import { announce } from '../engine/events';
+import { registerState } from '../engine/savestate';
 import { applyTod } from '../engine/sky';
 import { $ } from '../engine/util.js';
 import { CAM } from './camera.js';
@@ -79,6 +80,23 @@ export function startMatch(roster = soloRoster()) {
   renderer.compile(scene, camera); // compile every shader now (pooled effects included) instead of stuttering when they first appear
 }
 let lastCount = 4;
+// for a new host carrying the match on (engine/savestate): what snapshots don't carry about the cars and the match
+const HIDDEN = ['cdMG', 'cdW', 'cdS', 'gunSide', 'resetCd', 'lastHitTime', 'fellLap', 'hazardT', 'deathTime', 'stuckT', 'turnK', 'gripK'];
+const pidOf = c => (c ? c.pid : -1);
+registerState('cars', {
+  save: () => G.cars.map(c => ({
+    ...Object.fromEntries(HIDDEN.map(k => [k, c[k]])), lastHitBy: pidOf(c.lastHitBy), burnBy: pidOf(c.burnBy),
+    race: c.race && { respawnT: c.race.respawnT, wrongT: c.race.wrongT, lapStart: c.race.lapStart },
+  })),
+  load: (/** @type {any[]} */ list) => list.forEach((s, pid) => {
+    const c = G.cars[pid]; if (!c) return;
+    for (const k of HIDDEN) if (s[k] !== undefined) c[k] = s[k];
+    c.lastHitBy = G.cars[s.lastHitBy] || null; c.burnBy = G.cars[s.burnBy] || null;
+    if (c.race && s.race) Object.assign(c.race, s.race);
+  }),
+});
+registerState('match', { save: () => ({ time: G.time, endT: G.endT }), load: (/** @type {any} */ d) => { G.time = d.time; G.endT = d.endT; } });
+registerState('mode', { save: () => (G.mode.save ? G.mode.save() : null), load: d => { if (d && G.mode.load) G.mode.load(d); } });
 /** A car has been wrecked: the mode decides what that means. */
 export function onCarKilled(c, by) {
   c.wreckedBy = by || null;
@@ -86,24 +104,32 @@ export function onCarKilled(c, by) {
   if (by && by.isPlayer) G.slowT = Math.max(G.slowT, 0.55);
   G.mode.wrecked(c, by || null);
 }
-function endMatch() {
+/** The match is over: results (online guests are handed theirs by the host). */
+export function endMatch(view) {
   G.state = 'over';
-  showResults();
+  showResults(view);
   show('over'); $('#hud').hidden = true; resize();
 }
-export function pauseGame() { if (G.state !== 'playing') return; G.state = 'paused'; show('pause'); for (const k in KEYS) KEYS[k] = false; }
-export function resumeGame() { if (G.state !== 'paused') return; G.state = 'playing'; show(null); }
+/** Pause. Online the match can't stop for one player: the menu opens over it, and the car coasts. */
+export function pauseGame() {
+  if (G.state !== 'playing') return;
+  if (!G.net) G.state = 'paused';
+  $('#restartBtn').hidden = !!G.net; $('#quitBtn').textContent = G.net ? 'Leave the match' : 'Back to garage';
+  show('pause'); for (const k in KEYS) KEYS[k] = false;
+}
+export function resumeGame() { if (G.state !== 'paused' && !(G.net && G.state === 'playing')) return; G.state = 'playing'; show(null); }
+/** The countdown's beeps and big numbers, from G.countdown (online guests run it from the host's countdown). */
+export function cueCountdown() {
+  const n = Math.max(0, Math.ceil(G.countdown - 0.2)); if (n === lastCount) return;
+  lastCount = n; if (n > 0) { bigText(String(n), 0.8); playSfx('beep'); } else { bigText('Go!', 0.8); playSfx('go'); }
+}
 
 // ================= step =================
 export function step(dt, rdt) {
   const p = G.player;
   // delayed events
   for (let i = G.delayed.length - 1; i >= 0; i--) { const d = G.delayed[i]; d.t -= dt; if (d.t <= 0) { G.delayed.splice(i, 1); d.fn(); } }
-  if (G.countdown > 0) {
-    G.countdown -= rdt;
-    const n = Math.ceil(G.countdown - 0.2);
-    if (n !== lastCount) { lastCount = n; if (n > 0) { bigText(String(n), 0.8); playSfx('beep'); } else { bigText('Go!', 0.8); playSfx('go'); } }
-  } else G.clock += dt;
+  if (G.countdown > 0) { G.countdown -= rdt; cueCountdown(); } else G.clock += dt;
   G.time += dt;
   if (G.state === 'playing' && p.alive && p.ctl) readControls(p, dt, p.ctl); // this screen's driver; others' controls come from afar (src/net)
   for (const c of G.cars) {

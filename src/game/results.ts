@@ -17,17 +17,26 @@ export function showRecord() {
   el.textContent = [plural(c.matches, 'match').replace('matchs', 'matches'), plural(c.wins, 'win'), plural(c.kills, 'wreck')].join(' · ');
 }
 
+/** The results screen as one driver sees it, in plain data (online, the host works it out for each player). */
+export interface ResultsView { order: number[]; win: boolean; title: string; sub: string; tiles: Array<[string, string]>; fates: string[]; place: number }
+export function resultsView(viewer: Car): ResultsView {
+  const r = (G.mode as GameMode).results(viewer);
+  return { order: r.order.map(c => c.pid), win: r.win, title: r.title, sub: r.sub, tiles: r.tiles, fates: r.order.map(c => r.fate(c)), place: r.order.indexOf(viewer) + 1 };
+}
 /** Fill in the results screen for the match that just ended (the mode supplies the content) and add it to the career record. */
-export function showResults() {
-  const p = G.player as Car, cars = G.cars as Car[], r = (G.mode as GameMode).results(p), place = r.order.indexOf(p) + 1, win = r.win;
-  const title = $('#overTitle'); title.textContent = r.title; title.classList.toggle('lost', !win);
-  $('#overSub').textContent = r.sub;
-  $('#againBtn').textContent = (G.mode as GameMode).againLabel;
+export function showResults(view = resultsView(G.player as Car)) {
+  const p = G.player as Car, cars = G.cars as Car[], place = view.place, win = view.win;
+  const title = $('#overTitle'); title.textContent = view.title; title.classList.toggle('lost', !win);
+  $('#overSub').textContent = view.sub;
+  // online, the host starts the next match; everyone can go back to the lobby or leave
+  const again = $('#againBtn') as HTMLButtonElement, guest = !!G.net && G.net.role !== 'host';
+  again.textContent = guest ? 'Waiting for host…' : (G.mode as GameMode).againLabel; again.disabled = guest;
+  $('#oGarageBtn').textContent = G.net ? 'Back to the lobby' : 'Change car'; $('#oTitleBtn').textContent = G.net ? 'Leave' : 'Title';
   $('#rPlace').textContent = ordinal(place); $('#rOf').textContent = `of ${cars.length}`;
-  $('#rTiles').innerHTML = r.tiles.map(([label, value]) => `<div><b>${esc(value)}</b><span>${esc(label)}</span></div>`).join('');
-  $('#rStandings').innerHTML = r.order.map((c, i) => {
-    const who = c === p ? `You <small>${esc(c.def.name)}</small>` : `${esc(c.name)} <small>${esc(c.def.name)}</small>`;
-    return `<li class="${c === p ? 'me' : ''}"><b>${ordinal(i + 1)}</b><i style="background:${c.def.tag}"></i><span class="who">${who}</span><span class="k">${plural(c.kills, 'wreck')}</span><span class="fate">${esc(r.fate(c))}</span></li>`;
+  $('#rTiles').innerHTML = view.tiles.map(([label, value]) => `<div><b>${esc(value)}</b><span>${esc(label)}</span></div>`).join('');
+  $('#rStandings').innerHTML = view.order.map((pid, i) => {
+    const c = cars[pid], who = c === p ? `You <small>${esc(c.def.name)}</small>` : `${esc(c.name)} <small>${esc(c.def.name)}</small>`;
+    return `<li class="${c === p ? 'me' : ''}"><b>${ordinal(i + 1)}</b><i style="background:${c.def.tag}"></i><span class="who">${who}</span><span class="k">${plural(c.kills, 'wreck')}</span><span class="fate">${esc(view.fates[i])}</span></li>`;
   }).join('');
   // career record, and anything this match beat
   const c = career(), badges: string[] = [];

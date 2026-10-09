@@ -56,6 +56,9 @@ export interface GameMode {
   status(player: Car): [string, string];
   /** The results screen for the match that just ended, as `viewer` (a human's car) sees it. */
   results(viewer: Car): Results;
+  /** The mode's own state, as plain JSON (cars by pid), for another player to carry an online match on (engine/savestate). */
+  save?(): unknown;
+  load?(data: unknown): void;
   /** Where a bot should steer and how fast it may go, or null to let it hunt (the default). */
   drive?(bot: Bot): { x: number; z: number; want: number } | null;
 }

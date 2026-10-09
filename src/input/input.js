@@ -22,14 +22,16 @@ export const LAST = { device: /** @type {import('./bindings').Device} */ (isTouc
 function useDevice(d) { if (LAST.device !== d || document.body.dataset.device !== d) { LAST.device = d; document.body.dataset.device = d; } }
 const GAME_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Tab']);
 addEventListener('keydown', e => {
+  if (e.target instanceof HTMLInputElement) return; // typing a name or a room code
   if (GAME_KEYS.has(e.code) && G.state === 'playing') e.preventDefault();
   const first = !KEYS[e.code]; KEYS[e.code] = true;
-  if (G.state !== 'playing' && menuKey(e)) return;
+  const driving = G.state === 'playing' && !currentScreen(); // online, the pause menu opens over a match that goes on
+  if (!driving && menuKey(e)) return;
   if (!first || e.repeat) return;
   const a = actionForKey(e.code); if (!a) return;
   useDevice('keys');
-  if (G.state === 'playing') press(a, e.code === 'KeyQ' ? -1 : 1);
-  if (a === 'pause' && G.state === 'playing') pauseGame();
+  if (driving) press(a, e.code === 'KeyQ' ? -1 : 1);
+  if (a === 'pause' && driving) pauseGame();
 });
 /** Keys in menus: arrows move, Enter selects, Esc goes back. Returns true when the key was used. */
 const MENU_DIRS = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', KeyW: 'up', KeyS: 'down', KeyA: 'left', KeyD: 'right' };
@@ -128,7 +130,8 @@ export function pollGamepad() {
   const used = Math.abs(ax) > 0.3 || PAD.thr !== 0 || gp.buttons.some(x => x.pressed);
   if (used) useDevice('pad');
   PAD.active = PAD.active || used;
-  if (G.state === 'playing') { for (const [i, a, dir] of PAD_PRESS) if (edge(i)) press(a, dir); }
+  const driving = G.state === 'playing' && !currentScreen();
+  if (driving) { for (const [i, a, dir] of PAD_PRESS) if (edge(i)) press(a, dir); }
   else if (currentScreen()) { // menus: d-pad or stick moves, A selects, B goes back
     const ay = gp.axes[1] || 0, sx = Math.abs(ax) > 0.6 ? Math.sign(ax) : 0, sy = Math.abs(ay) > 0.6 ? Math.sign(ay) : 0;
     const stick = sx !== PAD.sx || sy !== PAD.sy; PAD.sx = sx; PAD.sy = sy;
@@ -139,7 +142,7 @@ export function pollGamepad() {
     if (edge(0)) menuSelect();
     if (edge(1)) menuBack();
   }
-  if (edge(9)) { if (G.state === 'playing') pauseGame(); else if (G.state === 'paused') resumeGame(); }
+  if (edge(9)) { if (driving) pauseGame(); else if (G.state === 'paused' || G.state === 'playing') resumeGame(); }
   PAD.prev = gp.buttons.map(x => x.pressed);
 }
 
@@ -154,6 +157,7 @@ export function newControls() { return { throttle: 0, steer: 0, handbrake: false
 const AUTO = { sightT: 0, inSights: false, hardT: 0 };
 /** Read the keyboard, touch controls and gamepad into `ctl` for car `c` (its sights drive the automatic machine gun). */
 export function readControls(c, dt, ctl) {
+  if (currentScreen()) { Object.assign(ctl, newControls(), { pref: ctl.pref }); return; } // a menu is open over the match (online)
   const k = KEYS;
   let thr = ((k.ArrowUp || k.KeyW) ? 1 : 0) - ((k.ArrowDown || k.KeyS) ? 1 : 0);
   let steer = ((k.ArrowRight || k.KeyD) ? 1 : 0) - ((k.ArrowLeft || k.KeyA) ? 1 : 0);

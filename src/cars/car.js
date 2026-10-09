@@ -4,6 +4,7 @@ import { buildCarModel } from './model/build.js';
 import { damageCar } from '../combat/damage.js';
 import { sparks } from '../combat/effects.js';
 import { spawnDebris } from '../engine/debris.js';
+import { effect } from '../engine/events';
 import { FX_ADD, FX_SMOKE, fxScale } from '../engine/particles.js';
 import { addToScene } from '../engine/renderer.js';
 import { curTod } from '../engine/sky';
@@ -20,6 +21,11 @@ const DROOP = 0.14; // how far a wheel can hang below its rest position to reach
 /** How far one wheel may rest above or below the ground under the car's middle (see sampleContacts). */
 const CONTACT_RISE = 0.6, CONTACT_DROP = 0.8;
 const BUBBLE_GEO = (() => { const g = new THREE.IcosahedronGeometry(1, 2); g.scale(1.9, 1.35, 3.1); return g; })();
+/** Dust and a thud where a car comes down from a jump. */
+const landing = effect('landing', (x, y, z, hard) => {
+  for (let i = 0; i < 12 * fxScale; i++) FX_SMOKE.spawn(x + rand(-2, 2), y + 0.2, z + rand(-2, 2), rand(-6, 6), rand(0.5, 3), rand(-6, 6), rand(0.7, 1.2), 1.5, 5, curTod.night ? 0x5a4a5a : 0xd8a878, curTod.night ? 0x3a2a40 : 0xe8c090, 0.45, 2, -0.3);
+  playSfx('thud', x, z, clamp(hard / 20, 0.3, 1));
+});
 const BUBBLE_MAT = new THREE.MeshBasicMaterial({ color: 0x3aa8f0, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false, wireframe: true });
 export class Car {
   /**
@@ -174,8 +180,7 @@ export class Car {
   }
   land() {
     const hard = -this.vy;
-    for (let i = 0; i < 12 * fxScale; i++) FX_SMOKE.spawn(this.x + rand(-2, 2), this.y + 0.2, this.z + rand(-2, 2), rand(-6, 6), rand(0.5, 3), rand(-6, 6), rand(0.7, 1.2), 1.5, 5, curTod.night ? 0x5a4a5a : 0xd8a878, curTod.night ? 0x3a2a40 : 0xe8c090, 0.45, 2, -0.3);
-    playSfx('thud', this.x, this.z, clamp(hard / 20, 0.3, 1));
+    landing(this.x, this.y, this.z, hard);
     if (hard > 26 && this.alive) damageCar(this, (hard - 26) * 0.5, null, 'fall');
     if (this.isPlayer) shake(this.x, this.z, clamp(hard / 40, 0.1, 0.5));
   }
@@ -264,9 +269,13 @@ export class Car {
     for (const b of this.model.beams) b.visible = curTod.night;
   }
   wreck() {
-    this.alive = false; this.hp = 0; this.deathTime = G.time; this.wreckT = 0;
-    this.model.tint(0.18, 0.16, 0.15); this.model.emit(0, 0, 0); this.model.lights(false, false, false); this.frozen = 0; this.burning = 0; this.boost = 0;
+    this.alive = false; this.hp = 0; this.deathTime = G.time; this.wreckT = 0; this.frozen = 0; this.burning = 0; this.boost = 0;
     this.vy = 14; this.grounded = false; this.y += 0.2; this.tumbleV = rand(4, 7) * (Math.random() < 0.5 ? -1 : 1); this.tumbleAxis = Math.random() < 0.5 ? 0 : 1;
+    this.wreckLook();
+  }
+  /** A wreck's look: burnt paint, lights out, wheels flying off (online guests call it when the host says a car is wrecked). */
+  wreckLook() {
+    this.model.tint(0.18, 0.16, 0.15); this.model.emit(0, 0, 0); this.model.lights(false, false, false);
     for (const w of this.model.wheels) {
       if (Math.random() < 0.6) {
         w.on = false; this.model.wheelWorldPos(w, _v1);

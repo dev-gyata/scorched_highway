@@ -4,6 +4,9 @@ import { addToScene } from '../engine/renderer.js';
 import { TAU, pick, rand, srand } from '../engine/util.js';
 import { ground } from './terrain.js';
 import { CRATE_AMMO } from '../combat/arsenal';
+import { registerState } from '../engine/savestate';
+import { G } from '../game/state.js';
+import { mapAt } from '../maps/registry';
 import { drawGlyph, rrect } from './glyphs';
 
 // ================= pickups =================
@@ -106,6 +109,11 @@ function setPickupType(p: Pickup, type: string) {
 export function resetPickups() {
   for (const p of PICKUPS) { setPickupType(p, pick(p.pool)); p.active = true; p.visible = true; p.respawn = 0; }
 }
+/** Show a pickup as the online host has it: there or taken, and its type (it doesn't come back by itself here). */
+export function mirrorPickup(p: Pickup, active: boolean, type: string) {
+  if (p.type !== type) setPickupType(p, type);
+  p.active = active; p.visible = true; p.respawn = active ? 0 : Infinity;
+}
 export function updatePickups(dt: number, t: number) {
   for (const set of SETS) updateSet(set, dt, t);
 }
@@ -125,6 +133,12 @@ function updateSet(set: PickupSet, dt: number, t: number) {
   }
   for (const m of [crates, rings, beams, icons]) m.instanceMatrix.needsUpdate = true;
 }
+// for a new host carrying the match on (engine/savestate): when each taken crate on this map comes back
+const here = () => PICKUPS.filter(p => mapAt(p.x) === G.map);
+registerState('pickups', {
+  save: () => here().map(p => p.respawn),
+  load: (d: unknown) => here().forEach((p, i) => { if (!p.active) p.respawn = (d as number[])[i] ?? 10; }),
+});
 export function nearestPickup(c, filter, maxD) {
   let best = null, bd = maxD * maxD;
   for (const p of PICKUPS) { if (!filter(p)) continue; const dx = p.x - c.x, dz = p.z - c.z, d2 = dx * dx + dz * dz; if (d2 < bd) { bd = d2; best = p; } }

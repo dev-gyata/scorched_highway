@@ -3,11 +3,13 @@ import { playSfx } from '../audio/audio.js';
 import { damageCar } from '../combat/damage.js';
 import { explode } from '../combat/effects.js';
 import { spawnDebris } from '../engine/debris.js';
+import { effect } from '../engine/events';
 import { MAT_VC, PB, signTexture } from '../engine/geometry.js';
 import { FX_SMOKE, fxScale } from '../engine/particles.js';
 import { addToScene } from '../engine/renderer.js';
 import { TAU, _q1, rand, srand } from '../engine/util.js';
 import { G, shake } from '../game/state.js';
+import { mapAt } from '../maps/registry';
 import { ground } from './terrain.js';
 import { queueCactus } from './flora';
 
@@ -90,22 +92,36 @@ export function damageProp(p, amt, by) {
   if (p.hp <= 0) breakProp(p, by);
 }
 export function breakProp(p, by, dirX, dirZ) {
-  if (!p.alive) return; p.alive = false;
+  if (!p.alive || G.replica) return; // online, only the host breaks things; guests see it happen (breakLook)
+  let dx = dirX, dz = dirZ;
+  if (dx == null) { if (by) { dx = p.x - by.x; dz = p.z - by.z; } else { dx = rand(-1, 1); dz = rand(-1, 1); } }
+  breakLook(propId(p), dx, dz);
+  p.alive = false; p.solid = false;
+  if (p.fall) p.fall.by = by;
+  if (p.explosive) explode(p.x, p.y + 1, p.z, p.explosive.r, p.explosive.dmg, by || null, { size: p.kind === 'pump' ? 2.2 : 1.4, fire: p.explosive.fire });
+}
+/** A prop's number among its map's props: the same on every screen, whatever order the maps were built in. */
+export function propId(p) {
+  if (p.id == null) { const m = mapAt(p.x); p.id = PROPS.filter(o => mapAt(o.x) === m).indexOf(p); }
+  return p.id;
+}
+/** The prop numbered `id` on the map being played. */
+export function propById(id) { const m = G.map; return PROPS.filter(o => mapAt(o.x) === m)[id] || null; }
+/** A prop goes: debris, then a tower or billboard topples (along dx, dz), anything else vanishes in a puff (an explosive one's blast comes separately). */
+const breakLook = effect('prop', (id, dx, dz) => {
+  const p = propById(id); if (!p || !p.alive) return;
+  p.alive = false; p.solid = false;
   const cnt = p.kind === 'cactus' ? 6 : 8;
   for (let i = 0; i < cnt * fxScale; i++) spawnDebris(p.x, p.y + rand(0.5, p.h * 0.6), p.z, rand(-6, 6), rand(4, 12), rand(-6, 6), rand(0.25, 0.7), p.debrisCol);
   if (p.topple) {
-    let dx = dirX, dz = dirZ;
-    if (dx == null) { if (by) { dx = p.x - by.x; dz = p.z - by.z; } else { dx = rand(-1, 1); dz = rand(-1, 1); } }
     const L = Math.hypot(dx, dz) || 1;
-    p.fall = { t: 0, ax: dz / L, az: -dx / L, dx: dx / L, dz: dz / L, by, q0: p.group.quaternion.clone() };
-    p.solid = false;
+    p.fall = { t: 0, ax: dz / L, az: -dx / L, dx: dx / L, dz: dz / L, by: null, q0: p.group.quaternion.clone() };
     playSfx('crash', p.x, p.z, 1);
   } else {
-    showProp(p, false); p.solid = false;
-    if (p.explosive) explode(p.x, p.y + 1, p.z, p.explosive.r, p.explosive.dmg, by || null, { size: p.kind === 'pump' ? 2.2 : 1.4, fire: p.explosive.fire });
-    else { puff(p.x, p.y + 1.5, p.z, 0x8a7a5a, 6); playSfx('crunch', p.x, p.z, 0.6); }
+    showProp(p, false);
+    if (!p.explosive) { puff(p.x, p.y + 1.5, p.z, 0x8a7a5a, 6); playSfx('crunch', p.x, p.z, 0.6); }
   }
-}
+});
 const _axis = new THREE.Vector3();
 export function updateProps(dt) {
   for (const p of PROPS) {

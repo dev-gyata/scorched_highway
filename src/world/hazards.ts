@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { playSfx } from '../audio/audio.js';
 import { damageCar, knock } from '../combat/damage.js';
+import { effect } from '../engine/events';
 import { FX_SMOKE, fxScale } from '../engine/particles.js';
 import { addToScene } from '../engine/renderer.js';
 import { GRAV, clamp, mulberry32, rand } from '../engine/util.js';
@@ -20,7 +21,7 @@ export interface RockfallSite { kind: 'rockfall'; name: string; s: number; drops
 /** A wrong-way truck: the polyline it drives, in order; `s` is where it starts on the lap (the end it drives off). */
 export interface TruckSite { kind: 'truck'; name: string; s: number; route: { x: number[]; z: number[] } }
 export type HazardSite = RockfallSite | TruckSite;
-type Car = { x: number; y: number; z: number; vx: number; vz: number; vy: number; radius: number; mass: number; alive: boolean; isPlayer: boolean; hazardT?: number };
+type Car = { x: number; y: number; z: number; vx: number; vz: number; vy: number; radius: number; mass: number; alive: boolean; isPlayer: boolean; pid: number; hazardT?: number };
 /** Heavier cars shrug off part of a hazard's hit (Big Chill takes about 70%, Scorcher about 115%). */
 const toughness = (c: Car) => Math.pow(c.mass, -0.7);
 
@@ -73,16 +74,28 @@ export const isBusy = (site: HazardSite) => busy.has(site);
 /** Set a hazard off; `by` gets the credit for what it wrecks. Returns false if it's already going. */
 export function triggerHazard(site: HazardSite, by: Car | null): boolean {
   if (busy.has(site) || (site.kind === 'truck' && truck)) return false;
+  // each boulder's flight time and delay are rolled here, so every screen online drops the same boulders
+  const rolls = site.kind === 'rockfall' ? site.drops.map(() => [rand(0, 0.3), rand(0, 0.15)]).flat() : [];
+  start(((G.map?.hazards || []) as HazardSite[]).indexOf(site), by ? by.pid : -1, ...rolls);
+  if (!busy.has(site)) startSite(site, by, rolls); // a site that isn't on the map being played (tests)
+  return true;
+}
+/** A hazard starts (online guests run it from here on too, quietly: the host plays its sounds). */
+const start = effect('hazard', (siteIndex: number, byPid: number, ...rolls: number[]) => {
+  const site = ((G.map?.hazards || []) as HazardSite[])[siteIndex]; if (!site) return;
+  startSite(site, byPid >= 0 ? (G.cars[byPid] as Car) : null, rolls);
+});
+function startSite(site: HazardSite, by: Car | null, rolls: number[]) {
   buildHazards(); busy.add(site);
   if (site.kind === 'rockfall') {
     const cx = site.drops.reduce((a, d) => a + d.fx, 0) / site.drops.length, cz = site.drops.reduce((a, d) => a + d.fz, 0) / site.drops.length;
     playSfx('rumble', cx, cz, 1.4); shake(cx, cz, 0.5);
     site.drops.forEach((d, k) => {
       if (ROCKS.length >= MAX_ROCKS) return;
-      const T = ROCK_FLIGHT + rand(0, 0.3), ty = ground(d.tx, d.tz) + d.r * 0.4;
+      const T = ROCK_FLIGHT + rolls[2 * k], ty = ground(d.tx, d.tz) + d.r * 0.4;
       ROCKS.push({
         x: d.fx, y: d.fy, z: d.fz, vx: (d.tx - d.fx) / T, vz: (d.tz - d.fz) / T, vy: (ty - d.fy + 0.5 * GRAV * T * T) / T, r: d.r,
-        phase: 'wait', t: ROCK_WARN + k * 0.22 + rand(0, 0.15), spin: new THREE.Vector3(rand(-3, 3), rand(-3, 3), rand(-3, 3)), rot: new THREE.Quaternion(), by, hit: new Set(),
+        phase: 'wait', t: ROCK_WARN + k * 0.22 + rolls[2 * k + 1], spin: new THREE.Vector3(rand(-3, 3), rand(-3, 3), rand(-3, 3)), rot: new THREE.Quaternion(), by, hit: new Set(),
       });
     });
     G.delayed.push({ t: ROCK_WARN + site.drops.length * 0.22 + ROCK_FLIGHT + ROCK_REST + ROCK_SINK + COOLDOWN, fn: () => busy.delete(site) });
@@ -91,7 +104,6 @@ export function triggerHazard(site: HazardSite, by: Car | null): boolean {
     truck = { site, s: 0, x: r.x[0], z: r.z[0], y: 0, hx: 0, hz: 1, segs, by, hornT: 0 };
     placeTruck(truck);
   }
-  return true;
 }
 function placeTruck(t: Truck) {
   const { x, z } = t.site.route, n = x.length; let i = 0; while (i < n - 2 && t.segs[i + 1] < t.s) i++;

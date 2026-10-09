@@ -28,8 +28,9 @@ export function tick(now) {
   pollGamepad();
   let dt = rdt;
   if (G.state === 'playing') {
-    G.slowT -= rdt; const ts = G.slowT > 0 ? 0.3 : 1; G.timeScale = lerp(G.timeScale, ts, 1 - Math.exp(-8 * rdt)); dt = rdt * G.timeScale;
-    step(dt, rdt);
+    // slow motion for a big moment; online it would slow everyone's game, so only as the match ends
+    G.slowT -= rdt; const ts = G.slowT > 0 && (!G.net || G.endT > 0) ? 0.3 : 1; G.timeScale = lerp(G.timeScale, ts, 1 - Math.exp(-8 * rdt)); dt = rdt * G.timeScale;
+    if (G.replica) G.net.replica(dt, rdt); else step(dt, rdt); // an online guest mirrors the host's match (src/net)
     const p = G.player, watch = spectating(p);
     if (watch) chaseCam(rdt, watch);
     else if (p.alive || G.endT > 1.5) chaseCam(rdt, p);
@@ -56,12 +57,13 @@ export function tick(now) {
     if (G.showcase) { if (G.showcase.siren) { const on = (now / 180 | 0) % 2 === 0; G.showcase.siren[0].visible = on; G.showcase.siren[1].visible = !on; } }
   } else if (G.state === 'over') {
     const p = G.player; if (p) orbitCam(rdt, p.x, p.y, p.z, 12, 5, 0.25, 1);
-    step(rdt * 0.5, rdt); // world keeps moving gently behind the results
+    if (G.replica) G.net.replica(rdt * 0.5, rdt); else step(rdt * 0.5, rdt); // world keeps moving gently behind the results
   }
   if (G.state !== 'paused') {
     for (const s of PSYS) s.update(G.state === 'playing' ? dt : rdt);
     updateDebris(G.state === 'playing' ? dt : rdt); updateLights(rdt); updateTumbleweeds(G.state === 'playing' ? dt : rdt, now / 1000);
   }
+  if (G.net) G.net.frame(rdt); // online: send and receive (src/net)
   G.shake = Math.max(0, G.shake - rdt * 2.2);
   updateAudio(rdt);
   // sky & sun follow camera

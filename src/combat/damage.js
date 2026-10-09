@@ -13,7 +13,7 @@ export const DIFF = [
   { name: 'Hard', aim: 0.03, mg: 0.95, fire: 1, react: 0.3, toPlayer: 1, combo: 0.35, speed: 1, bias: 25 },
 ];
 export function damageCar(c, amt, by, kind, silent) {
-  if (!c.alive || amt <= 0 || G.state !== 'playing') return;
+  if (!c.alive || amt <= 0 || G.state !== 'playing' || G.replica) return;
   if (G.countdown > 0) return;
   if (c.human && by && by !== c && !by.human) amt *= DIFF[G.settings.difficulty].toPlayer; // the difficulty eases the bots' hits on people, not people's on each other
   if (G.mode && G.mode.damageScale && by !== c) amt *= G.mode.damageScale(c, by);

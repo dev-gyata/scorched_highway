@@ -1,12 +1,16 @@
 // Rules several modes share.
 import { giveAmmo } from '../combat/arsenal';
-import { emit, tell } from '../engine/events';
+import { effect, emit, tell } from '../engine/events';
 import { FX_ADD, fxScale } from '../engine/particles.js';
 import { rand } from '../engine/util.js';
 import { G } from '../game/state.js';
 import { PICK, PICKUPS, type Pickup } from '../world/pickups';
 import type { Car } from './types';
 
+/** The burst of colour where a crate is taken. */
+const sparkle = effect('pickup', (x: number, y: number, z: number, color: number) => {
+  for (let i = 0; i < 16 * fxScale; i++) FX_ADD.spawn(x, y + 1.4, z, rand(-6, 6), rand(2, 9), rand(-6, 6), 0.5, 1, 0.1, color, 0xffffff, 0.9, 1.5, 6);
+});
 /** Driving through a crate: repair, special ammo or a weapon (which may push out the weapon you have least of). */
 function collect(c: Car, p: Pickup) {
   const t = p.type;
@@ -14,7 +18,7 @@ function collect(c: Car, p: Pickup) {
   else if (t === 'special') { if (c.special >= 6) return; c.special = Math.min(6, c.special + 2); }
   else { const dropped = giveAmmo(c, t as never); if (dropped === false) return; if (dropped && c.human) tell(c.pid, 'Dropped ' + PICK[dropped].label + ' to make room'); }
   p.active = false; p.respawn = t === 'repair' ? 22 : 14;
-  for (let i = 0; i < 16 * fxScale; i++) FX_ADD.spawn(p.x, p.y + 1.4, p.z, rand(-6, 6), rand(2, 9), rand(-6, 6), 0.5, 1, 0.1, PICK[t].color, 0xffffff, 0.9, 1.5, 6);
+  sparkle(p.x, p.y, p.z, PICK[t].color);
   if (c.human) { emit({ kind: 'sound', to: c.pid, name: t === 'repair' ? 'repair' : 'pickup' }); tell(c.pid, t === 'repair' ? 'Repaired' : '+' + PICK[t].amt + (t === 'flame' ? 's' : '') + ' ' + PICK[t].label); }
 }
 

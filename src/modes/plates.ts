@@ -4,7 +4,7 @@
 // - shield: a few seconds in which you take a quarter of the damage;
 // - skull: sets off the next hazard ahead of you (a rockfall, a wrong-way truck), for whoever's in front.
 import { type Weapon, giveAmmo } from '../combat/arsenal';
-import { ALL, announce, emit, tell } from '../engine/events';
+import { ALL, announce, effect, emit, tell } from '../engine/events';
 import { FX_ADD, fxScale } from '../engine/particles.js';
 import { pick, rand } from '../engine/util.js';
 import { G } from '../game/state.js';
@@ -40,9 +40,13 @@ export function drivePlates(rules: PlateRules) {
     const p = takePlate(c.x, c.y, c.z); if (p) plate(c, p, rules);
   }
 }
+/** The burst of colour where a plate is taken. */
+const flare = effect('plate', (x: number, y: number, z: number, color: number) => {
+  for (let i = 0; i < 18 * fxScale; i++) FX_ADD.spawn(x + rand(-1.5, 1.5), y + 0.3, z + rand(-1.5, 1.5), rand(-2, 2), rand(5, 11), rand(-2, 2), 0.5, 1, 0.1, color, 0xffffff, 0.9, 1, 4);
+});
 function plate(c: Car, p: Plate, rules: PlateRules) {
   const me = c.human; // whoever took it hears and reads about it; everyone else hears about skulls
-  for (let i = 0; i < 18 * fxScale; i++) FX_ADD.spawn(p.x + rand(-1.5, 1.5), p.y + 0.3, p.z + rand(-1.5, 1.5), rand(-2, 2), rand(5, 11), rand(-2, 2), 0.5, 1, 0.1, PLATE[p.type].color, 0xffffff, 0.9, 1, 4);
+  flare(p.x, p.y, p.z, PLATE[p.type].color);
   if (me) emit({ kind: 'sound', to: c.pid, name: 'plate' });
   if (p.type === 'sword') {
     if (c.mgLocked) { c.mgLocked = false; if (me) announce(c.pid, 'Machine gun armed!', 1.2); }

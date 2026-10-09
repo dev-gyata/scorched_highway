@@ -2,6 +2,7 @@ import { playSfx } from '../audio/audio.js';
 import { damageCar, knock } from './damage.js';
 import { MINES, RINGS, takeMesh } from './pools.js';
 import { spawnDebris } from '../engine/debris.js';
+import { effect } from '../engine/events';
 import { FX_ADD, FX_SMOKE, fxScale } from '../engine/particles.js';
 import { flashLight } from '../engine/renderer.js';
 import { TAU, clamp, pick, rand } from '../engine/util.js';
@@ -10,10 +11,12 @@ import { PROPS, damageProp } from '../world/props.js';
 import { ground } from '../world/terrain.js';
 
 // ================= effects =================
-export function sparks(x, y, z, n) {
+// One-off sights and sounds are effects (engine/events): online, every screen plays them.
+export const sparks = effect('sparks', (x, y, z, n) => {
   for (let i = 0; i < n * fxScale; i++) FX_ADD.spawn(x, y, z, rand(-12, 12), rand(2, 12), rand(-12, 12), rand(0.15, 0.4), 0.35, 0.1, 0xfff2b0, 0xff8020, 1, 2, 20);
-}
-export function explodeFX(x, y, z, size, opts) {
+});
+/** The look and sound of an explosion; `opts` are flags only ({ fire, ice }), so it can travel. */
+export const explodeFX = effect('explode', /** @param {number} x @param {number} y @param {number} z @param {number} size @param {{ fire?: boolean, ice?: boolean }} [opts] */ (x, y, z, size, opts) => {
   opts = opts || {};
   const n = Math.round(16 * size * fxScale);
   for (let i = 0; i < n; i++) {
@@ -31,11 +34,11 @@ export function explodeFX(x, y, z, size, opts) {
   flashLight(x, y, z, opts.ice ? 1.5 : 2.5 + size);
   playSfx('boom', x, z, clamp(size / 2, 0.4, 1.3));
   shake(x, z, size * 0.35);
-}
-export function ring(x, y, z, radius, life, color) {
+});
+export const ring = effect('ring', (x, y, z, radius, life, color) => {
   const m = takeMesh('ring'); m.position.set(x, y, z); m.scale.set(0.1, 0.1, 0.1); m.material.color.setHex(color); m.material.opacity = 0.8;
   RINGS.push({ mesh: m, t: 0, life, radius });
-}
+});
 export function updateRings(dt) {
   for (let i = RINGS.length - 1; i >= 0; i--) {
     const r = RINGS[i]; r.t += dt; const k = r.t / r.life;
@@ -45,7 +48,7 @@ export function updateRings(dt) {
 }
 export function explode(x, y, z, radius, dmg, owner, opts) {
   opts = opts || {};
-  explodeFX(x, y, z, opts.size || radius / 4.5, opts);
+  explodeFX(x, y, z, opts.size || radius / 4.5, { fire: !!opts.fire, ice: !!opts.ice });
   for (const c of G.cars) {
     const dx = c.x - x, dy = (c.y + 1) - y, dz = c.z - z; const d = Math.sqrt(dx * dx + dy * dy * 0.5 + dz * dz);
     if (d > radius + c.radius || c === opts.spare) continue;

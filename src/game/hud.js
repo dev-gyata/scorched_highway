@@ -36,7 +36,7 @@ function wreckLine(e, me) {
 onEvent(e => {
   const me = G.player; if (!me) return;
   if (e.kind === 'wreck') { feed(wreckLine(e, me), e.by === me.pid || e.victim === me.pid); return; }
-  if (e.to !== ALL && e.to !== me.pid) return;
+  if (e.kind === 'fx' || (e.to !== ALL && e.to !== me.pid)) return;
   if (e.kind === 'big') bigText(e.text, e.dur, e.small);
   else if (e.kind === 'feed') { if (e.skip !== me.pid) feed(e.text, e.mine); }
   else if (e.kind === 'hit') hudHit(e.amt);

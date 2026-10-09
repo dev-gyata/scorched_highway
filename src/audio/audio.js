@@ -1,3 +1,4 @@
+import { effect } from '../engine/events';
 import { camera } from '../engine/renderer.js';
 import { G } from '../game/state.js';
 
@@ -34,7 +35,11 @@ function tone(t, dur, type, f0, f1, vol) {
   g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
   o.connect(g); g.connect(AU.master); o.start(t); o.stop(t + dur + 0.05);
 }
-export function playSfx(name, x, z, vol) {
+/** Play a sound: at a place in the world (x, z), quieter with distance from the camera, or (no x) as it is. */
+export function playSfx(name, x, z, vol) { if (x == null) sound(name, x, z, vol); else soundAt(name, x, z, vol); }
+/** A sound in the world is an effect (engine/events): online, every screen hears it, from where its camera is. */
+const soundAt = effect('sfx', /** @param {string} name @param {number} x @param {number} z @param {number} [vol] */ (name, x, z, vol) => sound(name, x, z, vol));
+function sound(name, x, z, vol) {
   if (!AU.ctx || G.settings.sound === 'off') return;
   let v = vol == null ? 1 : vol;
   if (x != null) { const d = Math.hypot(camera.position.x - x, camera.position.z - z); v *= 1 / (1 + d / 28); }
