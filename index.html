@@ -26,6 +26,7 @@
   </div>
   <nav class="title-menu">
     <button class="btn primary big" id="toGarage">Play</button>
+    <button class="btn ghost" id="toOnline">Play online</button>
     <button class="btn ghost" id="toHelp">How to play</button>
     <button class="btn ghost" id="toSettings">Settings</button>
     <p class="press"><span data-dev="keys">Press <kbd>Enter</kbd> to play</span><span data-dev="pad">Press <kbd>A</kbd> to play</span></p>
@@ -94,6 +95,46 @@
   </div>
 </section>
 
+<section id="online" class="screen modal" hidden>
+  <div class="card net">
+    <div class="stripes"></div>
+    <h2>Play online</h2>
+    <p>Up to six drivers. One of you hosts; the others join with the room code.</p>
+    <label class="field"><span>Your name</span><input id="netName" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="Driver"></label>
+    <div class="row net-go">
+      <button class="btn primary" id="netHost">Host a game</button>
+      <span class="or">or</span>
+      <input id="netCode" class="code-in" maxlength="5" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="CODE" aria-label="Room code">
+      <button class="btn ghost" id="netJoin">Join</button>
+    </div>
+    <p class="net-status" id="netStatus" role="status"></p>
+    <div class="row"><button class="btn ghost" id="netBack">Back</button></div>
+  </div>
+</section>
+
+<section id="lobby" class="screen modal" hidden>
+  <div class="card net">
+    <div class="stripes"></div>
+    <h2>Room <span class="code" id="lobbyCode"></span></h2>
+    <p id="lobbyHint">Friends join from Play online with this code.</p>
+    <ol class="players" id="lobbyPlayers"></ol>
+    <div class="host-opts" id="lobbyOpts">
+      <div class="cyc" data-opt="mode"></div>
+      <div class="cyc" data-opt="map"></div>
+      <div class="cyc" data-opt="difficulty" data-vals="0,1,2" data-labels="Easy bots,Normal bots,Hard bots"></div>
+      <div class="cyc" data-opt="tod" data-vals="noon,sunset,night" data-labels="Noon,Sunset,Night"></div>
+      <div class="cyc" data-opt="bots" data-vals="fill,off" data-labels="Bots fill the field,No bots"></div>
+    </div>
+    <p class="net-status" id="lobbyNote" role="status"></p>
+    <div class="row">
+      <button class="btn primary" id="lobbyGo">Start</button>
+      <button class="btn ghost" id="lobbyCar">Change car</button>
+      <button class="btn ghost" id="lobbyShare">Copy code</button>
+      <button class="btn ghost" id="lobbyLeave">Leave</button>
+    </div>
+  </div>
+</section>
+
 <section id="settings" class="screen modal" hidden>
   <div class="card">
     <div class="stripes"></div>
@@ -155,6 +196,7 @@
   <div id="feed"></div>
   <div class="hud-tr"><button id="pauseBtn" aria-label="Pause">❚❚</button><canvas id="radar" width="264" height="264"></canvas></div>
   <div id="big"></div>
+  <div id="netWait" hidden>Waiting for the host…</div>
   <div id="lights" hidden><i></i><i></i><i></i></div>
   <div id="speedo"><b id="spd">0</b><span>mph</span></div>
   <div id="touch">

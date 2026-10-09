@@ -15,7 +15,7 @@ import { PICKUPS } from '../world/pickups';
 import { drawnGround } from '../world/surface.js';
 
 // ================= screens =================
-export function show(id) { for (const s of ['title', 'garage', 'pause', 'over', 'help', 'settings']) $('#' + s).hidden = s !== id; }
+export function show(id) { for (const s of ['title', 'garage', 'pause', 'over', 'help', 'settings', 'online', 'lobby']) $('#' + s).hidden = s !== id; }
 export function goTitle() {
   G.state = 'title'; show('title'); $('#hud').hidden = true; camera.clearViewOffset(); clearShowcase(); clearMatch(); showRecord();
   for (const pk of PICKUPS) pk.visible = true;

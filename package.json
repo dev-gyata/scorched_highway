@@ -16,6 +16,7 @@
     "bots": "node tools/botmatch.js"
   },
   "dependencies": {
+    "peerjs": "1.5.5",
     "three": "^0.128.0"
   },
   "devDependencies": {

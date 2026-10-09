@@ -44,7 +44,7 @@ test('every map and mode pairing starts, plays and ends cleanly', async ({ page 
 test('garage: picking a mode offers only the maps that host it', async ({ page }) => {
   await boot(page);
   await page.click('#toGarage');
-  const mode = page.locator('.cyc[data-opt="mode"]'), map = page.locator('.cyc[data-opt="map"]');
+  const mode = page.locator('#garage .cyc[data-opt="mode"]'), map = page.locator('#garage .cyc[data-opt="map"]'); // (the online lobby has its own)
   await expect(mode.locator('span')).toHaveText('Deathmatch');
   await expect(map.locator('span')).toHaveText('Ghost Town');
   await expect(page.locator('#startBtn')).toHaveText('Enter the Arena');

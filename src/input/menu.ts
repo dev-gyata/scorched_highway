@@ -5,7 +5,7 @@ import { stepCar } from '../game/screens.js';
 
 export type Dir = 'up' | 'down' | 'left' | 'right';
 /** The button that "back" presses on each screen. */
-const BACK: Record<string, string> = { garage: '#gBack', help: '#helpClose', settings: '#settingsClose', pause: '#resumeBtn' };
+const BACK: Record<string, string> = { garage: '#gBack', help: '#helpClose', settings: '#settingsClose', pause: '#resumeBtn', online: '#netBack' };
 
 /** The menu screen currently showing, if any. */
 export function currentScreen(): HTMLElement | null {

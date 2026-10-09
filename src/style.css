@@ -104,6 +104,33 @@ body[data-device="keys"] .press [data-dev="keys"],body[data-device="pad"] .press
 .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px 26px;max-width:min(560px,92vw);max-height:88vh;overflow:auto;touch-action:pan-y}
 .card h2{font-family:var(--display);font-weight:400;font-size:40px;margin:6px 0 6px;color:var(--sun);line-height:1}
 .card p{font-size:17px;line-height:1.4;margin:8px 0}
+/* online: the join screen and the lobby */
+.card.net{width:min(560px,92vw)}
+.field{display:grid;gap:6px;margin:14px 0 4px;font-size:14px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted)}
+.field input,.code-in{font:inherit;font-size:19px;font-weight:700;letter-spacing:normal;text-transform:none;color:var(--bone);background:rgba(246,234,212,.07);border:1.5px solid var(--line);border-radius:10px;padding:11px 14px;
+  -webkit-user-select:text;user-select:text;touch-action:manipulation;outline:none}
+.field input:focus,.code-in:focus{border-color:var(--sun)}
+.code-in{width:7.2em;text-transform:uppercase;letter-spacing:4px;text-align:center}
+.net-go{margin:16px 0 4px}
+.net-go .or{color:var(--muted);font-size:15px}
+.net-status{min-height:1.4em;color:var(--sun);font-weight:600}
+.net-status:empty{min-height:0;margin:0}
+.code{font-family:var(--ui);font-weight:700;letter-spacing:6px;color:var(--bone);background:rgba(246,234,212,.08);border-radius:10px;padding:0 10px;-webkit-user-select:text;user-select:text}
+.players{list-style:none;margin:14px 0;padding:0;display:grid;gap:6px}
+.players li{display:flex;align-items:center;gap:10px;background:rgba(246,234,212,.06);border-radius:10px;padding:9px 12px;font-size:17px}
+.players li.me{outline:1.5px solid var(--sun)}
+.players i{width:14px;height:14px;border-radius:50%;flex:none;box-shadow:0 0 0 2px rgba(30,17,42,.6)}
+.players .who{flex:1;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.players small{color:var(--muted);font-size:14px;font-weight:600}
+.players .tag{font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;border-radius:6px;padding:2px 7px;background:rgba(246,234,212,.12)}
+.players .tag.ready{background:var(--teal)}
+.players .tag.host{background:var(--sun);color:var(--ink)}
+.host-opts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0 4px}
+.host-opts .cyc[data-opt="bots"]{grid-column:1/-1}
+/* choosing a car from the lobby: the garage without its match setup */
+body.picking #garage .setup .cyc{display:none}
+#netWait{position:absolute;top:calc(96px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);background:rgba(30,17,42,.85);border:1.5px solid var(--line);
+  padding:8px 16px;border-radius:12px;font-size:16px;font-weight:700;color:var(--sun)}
 /* results: a panel on the left, the camera circling your car on the right */
 #over{background:linear-gradient(90deg,rgba(30,17,42,.55) 0%,rgba(30,17,42,0) 60%)}
 .opanel{width:min(480px,50vw);height:100%;overflow:hidden;touch-action:pan-y;background:var(--panel);border-right:1px solid var(--line);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
