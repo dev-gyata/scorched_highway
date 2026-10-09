@@ -33,10 +33,11 @@ export function showResults(view = resultsView(G.player as Car)) {
   again.textContent = guest ? 'Waiting for host…' : (G.mode as GameMode).againLabel; again.disabled = guest;
   $('#oGarageBtn').textContent = G.net ? 'Back to the lobby' : 'Change car'; $('#oTitleBtn').textContent = G.net ? 'Leave' : 'Title';
   $('#rPlace').textContent = ordinal(place); $('#rOf').textContent = `of ${cars.length}`;
-  $('#rTiles').innerHTML = view.tiles.map(([label, value]) => `<div><b>${esc(value)}</b><span>${esc(label)}</span></div>`).join('');
+  $('#rTiles').innerHTML = view.tiles.map(([label, value]) => `<div><b>${esc(String(value))}</b><span>${esc(String(label))}</span></div>`).join('');
   $('#rStandings').innerHTML = view.order.map((pid, i) => {
-    const c = cars[pid], who = c === p ? `You <small>${esc(c.def.name)}</small>` : `${esc(c.name)} <small>${esc(c.def.name)}</small>`;
-    return `<li class="${c === p ? 'me' : ''}"><b>${ordinal(i + 1)}</b><i style="background:${c.def.tag}"></i><span class="who">${who}</span><span class="k">${plural(c.kills, 'wreck')}</span><span class="fate">${esc(view.fates[i])}</span></li>`;
+    const c = cars[pid]; if (!c) return ''; // online, the view comes from the host: only cars that exist here
+    const who = c === p ? `You <small>${esc(c.def.name)}</small>` : `${esc(c.name)} <small>${esc(c.def.name)}</small>`;
+    return `<li class="${c === p ? 'me' : ''}"><b>${ordinal(i + 1)}</b><i style="background:${c.def.tag}"></i><span class="who">${who}</span><span class="k">${plural(c.kills, 'wreck')}</span><span class="fate">${esc(String(view.fates[i] ?? ''))}</span></li>`;
   }).join('');
   // career record, and anything this match beat
   const c = career(), badges: string[] = [];

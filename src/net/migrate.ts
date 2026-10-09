@@ -17,6 +17,8 @@ import { S, broadcast, end, now } from './session';
 /** Seconds of silence before the host counts as gone, and before a successor that never speaks up is passed over. */
 export const SILENT = 1.5, WAIT = 3;
 let ck: Record<string, unknown> | null = null, waiting = '', waitUntil = 0;
+/** A takeover we heard of before noticing the host had gone (it's honoured once we do). */
+let claim = { from: '', at: 0 };
 
 /** Host: send everyone the checkpoint. */
 export function saveCheckpoint() { if (S?.seats) broadcast({ t: 'ck', d: JSON.stringify(saveState()) }); }
@@ -46,11 +48,14 @@ export function hostLost() {
   const t = now();
   const next = S.players.find(p => p.id === S!.me || (S!.t.links().includes(p.id) && t - (S!.heard.get(p.id) ?? 0) < SILENT * 2));
   if (!next || next.id === S.me) { takeOver(); return; }
+  if (claim.from === next.id && t - claim.at < WAIT) { S.host = next.id; waiting = ''; S.role.rehost?.(); return; } // it already has
   S.host = next.id; waiting = next.id; waitUntil = t + WAIT; S.role.rehost?.();
 }
 /** A successor has taken over (`from`). If we took over too and come later in line, we hand it back. */
 export function migrated(from: string) {
-  if (!S) return;
+  if (!S || !S.seats || S.line.indexOf(from) < 0) return; // only someone in this match's line can take it over
+  const hostHere = S.role.name === 'guest' && !waiting && S.host !== from && now() - (S.heard.get(S.host) ?? 0) < SILENT;
+  if (hostHere) { claim = { from, at: now() }; return; } // and not while the host is still with us
   waiting = '';
   if (S.role.name === 'host') { if (S.line.indexOf(from) >= 0 && S.line.indexOf(from) < S.line.indexOf(S.me)) { S.role.dispose?.(); G.replica = true; S.role = guestRole(); } else return; }
   S.host = from; S.role.rehost?.();

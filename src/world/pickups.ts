@@ -137,7 +137,7 @@ function updateSet(set: PickupSet, dt: number, t: number) {
 const here = () => PICKUPS.filter(p => mapAt(p.x) === G.map);
 registerState('pickups', {
   save: () => here().map(p => p.respawn),
-  load: (d: unknown) => here().forEach((p, i) => { if (!p.active) p.respawn = (d as number[])[i] ?? 10; }),
+  load: (d: unknown) => here().forEach((p, i) => { const t = (d as number[])[i]; if (!p.active) p.respawn = Number.isFinite(t) ? t : 10; }),
 });
 export function nearestPickup(c, filter, maxD) {
   let best = null, bd = maxD * maxD;

@@ -28,14 +28,15 @@ export function feed(msg, mine) {
 }
 /** How a wreck reads on this screen: "You" for its own driver, names for everyone else. */
 function wreckLine(e, me) {
-  const v = G.cars[e.victim], by = e.by >= 0 ? G.cars[e.by] : null, vName = v === me ? 'You' : v.name;
+  const v = G.cars[e.victim], by = e.by >= 0 ? G.cars[e.by] || null : null; if (!v) return '';
+  const vName = v === me ? 'You' : v.name;
   if (!by) return e.how === 'fall' ? vName + ' came down too hard' : e.how === 'truck' ? vName + ' got flattened by the truck' : e.how === 'rock' ? vName + ' got buried in the rockfall' : vName + (v === me ? ' wrecked yourself' : ' wrecked themselves');
   return (by === me ? 'You' : by.name) + ' wrecked ' + (v === me ? 'you' : v.name);
 }
 // match events (engine/events) meant for this screen's driver, or for everyone
 onEvent(e => {
   const me = G.player; if (!me) return;
-  if (e.kind === 'wreck') { feed(wreckLine(e, me), e.by === me.pid || e.victim === me.pid); return; }
+  if (e.kind === 'wreck') { const line = wreckLine(e, me); if (line) feed(line, e.by === me.pid || e.victim === me.pid); return; }
   if (e.kind === 'fx' || (e.to !== ALL && e.to !== me.pid)) return;
   if (e.kind === 'big') bigText(e.text, e.dur, e.small);
   else if (e.kind === 'feed') { if (e.skip !== me.pid) feed(e.text, e.mine); }

@@ -5,7 +5,7 @@ import { onEvent, type GameEvent } from '../engine/events';
 import { isTouch } from '../engine/util.js';
 import { tick } from '../game/loop.js';
 import { endMatch, startMatch } from '../game/match.js';
-import { G } from '../game/state.js';
+import { G, saveSettings } from '../game/state.js';
 import type { ResultsView } from '../game/results';
 import { localTransport } from './local';
 import { peerTransport } from './peer';
@@ -32,8 +32,8 @@ export interface Session {
   seats: Seat[] | null; line: string[];
   /** When each link was last heard from (s), and its round trip (ms). */
   heard: Map<string, number>; rtt: Map<string, number>;
-  /** Called when the lobby changes (lobby.ts redraws). */
-  onlobby: () => void;
+  /** Called when the lobby changes (lobby.ts redraws), and when a match starts. */
+  onlobby: () => void; onstart: () => void;
   /** Called when the session ends, with a reason when it wasn't this player's choice. */
   onend: (why?: string) => void;
 }
@@ -55,16 +55,23 @@ export const meAsPlayer = (id: string): Player => ({ id, name: G.settings.name |
 export const hostOpts = (): MatchOpts => ({ mode: G.settings.mode, map: G.settings.map, difficulty: +G.settings.difficulty, tod: G.settings.tod, bots: G.settings.bots === 'off' ? 'off' : 'fill' });
 
 /** Start a session on transport `t`, as `role`. */
+let own: Partial<typeof G.settings> = {};
 export function begin(t: Transport, code: string, host: string, role: Role, players: Player[]): Session {
-  S = { t, code, me: t.id, host, role, players, opts: hostOpts(), seats: null, line: [], heard: new Map(), rtt: new Map(), onlobby: () => { }, onend: () => { } };
+  S = { t, code, me: t.id, host, role, players, opts: hostOpts(), seats: null, line: [], heard: new Map(), rtt: new Map(), onlobby: () => { }, onstart: () => { }, onend: () => { } };
+  own = role.name === 'guest' ? { mode: G.settings.mode, map: G.settings.map, difficulty: G.settings.difficulty, tod: G.settings.tod } : {}; // a guest plays the host's choices, then gets its own back
+  // Messages come from other people's games: anything that isn't what we expect, or trips us up, is dropped
+  // rather than allowed to stop this game.
   t.onmessage = (from, data) => {
     if (!S) return;
     S.heard.set(from, now());
-    if (typeof data !== 'string') { S.role.message(from, data); return; }
-    let m: Msg; try { m = JSON.parse(data); } catch { return; }
-    if (m.t === 'hb') { send(from, { t: 'pong', at: m.at }); return; }
-    if (m.t === 'pong') { S.rtt.set(from, performance.now() - m.at); return; }
-    S.role.message(from, m);
+    try {
+      if (data instanceof ArrayBuffer) { if (data.byteLength) S.role.message(from, data); return; }
+      if (typeof data !== 'string' || data.length > 200_000) return;
+      const m = JSON.parse(data) as Msg; if (!m || typeof m !== 'object' || typeof m.t !== 'string') return;
+      if (m.t === 'hb') { send(from, { t: 'pong', at: +m.at || 0 }); return; }
+      if (m.t === 'pong') { const rtt = performance.now() - +m.at; if (rtt >= 0 && rtt < 10_000) S.rtt.set(from, rtt); return; }
+      S.role.message(from, m);
+    } catch (e) { console.warn('Dropped a message from', from, e); }
   };
   t.onopen = id => { S?.heard.set(id, now()); };
   t.onclose = id => { S?.role.closed(id); };
@@ -78,6 +85,7 @@ export function end(why?: string) {
   for (const id of s.t.links()) s.t.send(id, JSON.stringify({ t: 'bye' } satisfies Msg), true);
   setTimeout(() => s.t.close(), 100);
   G.net = null; G.replica = false;
+  Object.assign(G.settings, own); saveSettings();
   s.onend(why);
 }
 
@@ -108,6 +116,7 @@ export function beginMatch(seats: Seat[], opts: MatchOpts, replica: boolean) {
   S.seats = seats; S.opts = opts; S.line = seats.filter(s => s.id).map(s => s.id!);
   Object.assign(G.settings, { mode: opts.mode, map: opts.map, difficulty: opts.difficulty, tod: opts.tod }); // not saved: they're the host's choices
   G.replica = replica;
+  S.onstart();
   startMatch(seats.map(s => ({ car: s.car, human: s.human, name: s.human ? s.name : undefined, local: s.id === S!.me })));
 }
 /** The match is over: show the results as this player sees them. */

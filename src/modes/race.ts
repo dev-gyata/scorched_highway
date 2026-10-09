@@ -260,5 +260,8 @@ export const race: GameMode = {
   },
   drive,
   save: () => ({ finishers, spawnSlot, endT, leader: leader ? leader.pid : -1 }),
-  load(d) { const s = d as { finishers: number; spawnSlot: number; endT: number; leader: number }; ({ finishers, spawnSlot, endT } = s); leader = (G.cars as Car[])[s.leader] || null; },
+  load(d) {
+    const s = d as Record<string, number>, n = (v: number, or: number) => (Number.isFinite(v) ? v : or);
+    finishers = n(s.finishers, finishers); spawnSlot = n(s.spawnSlot, spawnSlot); endT = n(s.endT, endT); leader = (G.cars as Car[])[s.leader] || null;
+  },
 };

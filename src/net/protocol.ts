@@ -139,7 +139,10 @@ export function decodeSnap(b: ArrayBuffer): Snap {
       shieldT, frozen, burning, boost, flash, dealt, race,
     });
   }
-  for (let n = r.u16(); n > 0; n--) s.proj.push({ id: r.u16(), type: PROJ_TYPES[r.u8()], x: r.f32(), y: r.f32(), z: r.f32(), vx: r.i16() / 10, vy: r.i16() / 10, vz: r.i16() / 10 });
+  for (let n = r.u16(); n > 0; n--) {
+    const p = { id: r.u16(), type: PROJ_TYPES[r.u8()], x: r.f32(), y: r.f32(), z: r.f32(), vx: r.i16() / 10, vy: r.i16() / 10, vz: r.i16() / 10 };
+    if (p.type) s.proj.push(p); // a kind this version doesn't know is left out
+  }
   for (let n = r.u8(); n > 0; n--) s.mines.push({ x: r.f32(), y: r.f32(), z: r.f32(), light: r.u8() === 1 });
   for (let n = r.u8(); n > 0; n--) s.picks.push(r.u8());
   for (let n = r.u8(); n > 0; n--) s.plates.push(r.u8() === 1);

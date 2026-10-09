@@ -24,6 +24,8 @@ import { type CarSnap, type NetCar, PROJ_MESH, SNAP, type Snap, decodeSnap, enco
 import { type Role, S, beginMatch, end, finishMatch, now, sendBytes } from './session';
 
 const wait = document.getElementById('netWait') as HTMLElement;
+/** Messages only the host may send. */
+const FROM_HOST = new Set(['lobby', 'start', 'ev', 'over', 'lobbyback', 'busy', 'ck']);
 /** How far behind the host other cars are drawn (s), and how often controls go to the host. */
 const DELAY = 0.1, INPUT_RATE = 30;
 /** Own car: how quickly it's eased toward where the host has it (per second), and how far off it may be before it's put there (m). */
@@ -58,10 +60,11 @@ export function guestRole(): Role {
     message(from, m) {
       if (!S) return;
       if (m instanceof ArrayBuffer) { if (kindOf(m) === SNAP && from === S.host) take(decodeSnap(m)); return; }
+      if (FROM_HOST.has(m.t) && from !== S.host) return; // only the host says how the room and the match are
       switch (m.t) {
         case 'lobby': S.players = m.players; S.opts = m.opts; S.code = m.code; S.host = m.host; meshUp(); S.onlobby(); break;
         case 'start': reset(); beginMatch(m.seats, m.opts, true); break;
-        case 'ev': for (const e of m.e) { if (e.kind === 'fx') playEffect(e.name, e.args); else emit(e); } break;
+        case 'ev': for (const e of m.e) { try { if (e.kind === 'fx') playEffect(e.name, e.args); else emit(e); } catch { /* one bad event mustn't stop the rest */ } } break;
         case 'over': finishMatch(m.r); break;
         case 'lobbyback': S.seats = null; S.onlobby(); break;
         case 'busy': end(m.why); break;

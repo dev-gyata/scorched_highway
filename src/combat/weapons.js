@@ -451,6 +451,8 @@ function impact(p, car, prop) {
   }
 }
 // for a new host carrying the match on (engine/savestate): projectiles and mines, cars named by pid
+const PROJ_KINDS = ['bullet', 'missile', 'rocket', 'flare', 'shell', 'smokeshell', 'minetoss', 'fireball', 'cannon', 'scrap', 'bomblet', 'ice'];
+const PROJ_NUMBERS = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'life', 'age', 'id', 'dmg', 'r', 'rad', 'speed', 'maxSpeed', 'turn', 'grav', 'knock', 'spin', 'seeT', 'blind'];
 const pidOf = c => (c && c.pid != null ? c.pid : -1), carOf = pid => (pid >= 0 ? G.cars[pid] || null : null);
 registerState('shots', {
   save: () => ({
@@ -460,8 +462,19 @@ registerState('shots', {
   load({ proj, mines }) {
     for (const p of PROJ) if (p.mesh) p.mesh.visible = false; PROJ.length = 0;
     for (const m of MINES) m.mesh.visible = false; MINES.length = 0;
-    for (const p of proj) { PROJ.push({ ...p, owner: carOf(p.owner), target: carOf(p.target), mesh: p.meshName ? takeMesh(p.meshName) : null }); projSeq = Math.max(projSeq, p.id); }
-    for (const m of mines) { const mesh = takeMesh('mine'); mesh.position.set(m.x, m.y, m.z); MINES.push({ ...m, owner: carOf(m.owner), mesh }); }
+    // it came from another player's game: known fields only, numbers as numbers, known kinds of projectile
+    for (const p of proj) {
+      if (!PROJ_KINDS.includes(p.type) || (p.meshName && !PROJ_KINDS.includes(p.meshName) && p.meshName !== 'mine')) continue;
+      const o = { type: p.type, meshName: p.meshName || null, owner: carOf(p.owner), target: carOf(p.target), inert: !!p.inert, alive: p.alive !== false, sees: !!p.sees };
+      for (const k of PROJ_NUMBERS) if (Number.isFinite(p[k])) o[k] = p[k];
+      if (!o.owner || !['x', 'y', 'z', 'vx', 'vy', 'vz', 'life'].every(k => Number.isFinite(o[k]))) continue;
+      o.mesh = o.meshName ? takeMesh(o.meshName) : null; PROJ.push(o); projSeq = Math.max(projSeq, o.id | 0);
+    }
+    for (const m of mines) {
+      if (!['x', 'y', 'z', 'arm', 'grace', 't', 'life'].every(k => Number.isFinite(m[k]))) continue;
+      const mesh = takeMesh('mine'); mesh.position.set(m.x, m.y, m.z);
+      MINES.push({ x: m.x, y: m.y, z: m.z, arm: m.arm, grace: m.grace, t: m.t, life: m.life, fuse: Number.isFinite(m.fuse) ? m.fuse : null, dead: false, owner: carOf(m.owner), mesh });
+    }
   },
 });
 export function updateMines(dt, t) {

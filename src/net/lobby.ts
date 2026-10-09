@@ -70,6 +70,7 @@ function hooks(s: NonNullable<typeof S>) {
     if (first && s.players.length) { first = false; toLobby(); } // a guest's first look at the room
     else if (!s.seats && (G.state === 'over' || G.state === 'playing')) toLobby(); // the host went back to the lobby
   };
+  s.onstart = () => document.body.classList.remove('picking');
   s.onend = why => { document.body.classList.remove('picking'); goTitle(); if (why) { show('online'); status('#netStatus', why); } };
 }
 

@@ -114,7 +114,7 @@ export function updatePlates(dt: number, time: number) {
 const here = () => PLATES.filter(p => mapAt(p.x) === G.map);
 registerState('plates', {
   save: () => here().map(p => p.t),
-  load: (d: unknown) => here().forEach((p, i) => { if (!p.armed) p.t = (d as number[])[i] ?? PLATE_REARM[p.type]; }),
+  load: (d: unknown) => here().forEach((p, i) => { const t = (d as number[])[i]; if (!p.armed) p.t = Number.isFinite(t) ? t : PLATE_REARM[p.type]; }),
 });
 /** The armed plate a car at (x, y, z) is on, if any; it goes dark. */
 export function takePlate(x: number, y: number, z: number): Plate | null {

@@ -90,12 +90,12 @@ registerState('cars', {
   })),
   load: (/** @type {any[]} */ list) => list.forEach((s, pid) => {
     const c = G.cars[pid]; if (!c) return;
-    for (const k of HIDDEN) if (s[k] !== undefined) c[k] = s[k];
+    for (const k of HIDDEN) if (Number.isFinite(s[k])) c[k] = s[k]; // numbers only, and only these: it came from another game
     c.lastHitBy = G.cars[s.lastHitBy] || null; c.burnBy = G.cars[s.burnBy] || null;
-    if (c.race && s.race) Object.assign(c.race, s.race);
+    if (c.race && s.race) for (const k of ['respawnT', 'wrongT', 'lapStart']) if (Number.isFinite(s.race[k])) c.race[k] = s.race[k];
   }),
 });
-registerState('match', { save: () => ({ time: G.time, endT: G.endT }), load: (/** @type {any} */ d) => { G.time = d.time; G.endT = d.endT; } });
+registerState('match', { save: () => ({ time: G.time, endT: G.endT }), load: (/** @type {any} */ d) => { if (Number.isFinite(d.time)) G.time = d.time; if (Number.isFinite(d.endT)) G.endT = d.endT; } });
 registerState('mode', { save: () => (G.mode.save ? G.mode.save() : null), load: d => { if (d && G.mode.load) G.mode.load(d); } });
 /** A car has been wrecked: the mode decides what that means. */
 export function onCarKilled(c, by) {

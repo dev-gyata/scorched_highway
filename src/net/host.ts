@@ -29,6 +29,7 @@ export function hostRole(): Role {
       if (!S) return;
       if (m instanceof ArrayBuffer) { if (kindOf(m) === INPUT) steer(from, decodeInput(m)); return; }
       if (m.t === 'hello') {
+        if (S.players.some(p => p.id === from)) return;
         if (m.v !== PROTOCOL) { send(from, { t: 'busy', why: 'That game is on a different version. Reload the page and try again.' }); return; }
         if (S.seats) { send(from, { t: 'busy', why: 'That game has already started.' }); return; }
         if (S.players.length >= MAX_PLAYERS) { send(from, { t: 'busy', why: 'That game is full.' }); return; }
@@ -41,7 +42,7 @@ export function hostRole(): Role {
         const p = S.players.find(q => q.id === from); if (!p || S.seats) return;
         if (m.name != null) p.name = clean(m.name);
         if (m.car != null && CARS.some(d => d.id === m.car)) p.car = m.car;
-        if (m.ready != null) p.ready = m.ready;
+        if (m.ready != null) p.ready = !!m.ready;
         shareLobby();
       } else if (m.t === 'migrated') migrated(from); // another player took over too: whoever comes first in line keeps it
       else if (m.t === 'bye') S.t.drop(from);
