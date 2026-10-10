@@ -61,7 +61,7 @@ export function decodeInput(b: ArrayBuffer): Input {
 
 // ---------- snapshots ----------
 /** Projectile types, in the order snapshots number them, and the pooled mesh each is drawn with. */
-export const PROJ_TYPES = ['bullet', 'missile', 'rocket', 'flare', 'shell', 'smokeshell', 'minetoss', 'fireball', 'cannon', 'scrap', 'bomblet', 'ice'];
+export const PROJ_TYPES = ['bullet', 'missile', 'rocket', 'flare', 'shell', 'smokeshell', 'minetoss', 'fireball', 'cannon', 'scrap', 'bomblet', 'ice', 'hook']; // (new kinds go on the end: the snapshot sends an index)
 export const PROJ_MESH: Record<string, string> = { smokeshell: 'shell', minetoss: 'mine', bomblet: 'scrap' };
 const PICK_TYPES = Object.keys(PICK);
 const F_ALIVE = 1, F_GROUND = 2, F_FLAME = 4, F_MGLOCK = 8, F_AXIS = 16, F_RACE = 32;

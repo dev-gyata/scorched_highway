@@ -256,7 +256,7 @@ test('online: a room holds ten people (the eleventh is told it is full), and bot
       const from = `${to}-crowd${i}`;
       bc.postMessage({ k: 'open', from, to });
       await new Promise(r => setTimeout(r, 60));
-      bc.postMessage({ k: 'data', from, to, d: JSON.stringify({ t: 'hello', name: 'Crowd ' + i, car: 'lawdog', desktop: true, v: 1 }) });
+      bc.postMessage({ k: 'data', from, to, d: JSON.stringify({ t: 'hello', name: 'Crowd ' + i, car: 'lawdog', desktop: true, v: 2 }) });
     }
     await new Promise(r => setTimeout(r, 800));
     return { last: got[`${to}-crowd9`].filter(m => m.t !== 'hb').map(m => m.why || m.t), ninth: got[`${to}-crowd8`].some(m => m.t === 'lobby' && m.players.length === 10) };
@@ -284,4 +284,26 @@ test('online: alone in a room with a field of ten, nine bots line up', async ({ 
   const size = await host.evaluate(() => window.SH.net.encodeSnap(1, 0).byteLength);
   expect(size).toBeLessThan(1500);
   console.log('snapshot with ten cars:', size, 'bytes');
+});
+
+// ---------- the new cars, online ----------
+test('online: Hookjaw hooks a guest in a Dust Devil: the guest sees the hook fly and its own car reeled in', async ({ context }) => {
+  test.slow();
+  const host = await player(context, 'Hana', { car: 'hookjaw', bots: 'off' }), guest = await player(context, 'Gus', { car: 'dustdevil' });
+  await room(host, guest); await start(host, guest);
+  expect(await guest.evaluate(() => window.SH.G.cars.map(c => c.def.id))).toEqual(['hookjaw', 'dustdevil']);
+  // line them up on open ground, the buggy 34 m ahead of the truck, and fire
+  const snap = await host.evaluate(() => {
+    const { G, step, combat, net } = window.SH, [p, foe] = G.cars, put = (c, z) => { c.x = 60; c.z = z; c.y = G.map.height(60, z); c.yaw = 0; c.vx = c.vz = c.vy = 0; };
+    put(p, 60); put(foe, 94); p.special = 3; p.cdS = 0; p.sFire = true; step(1 / 60, 1 / 60);
+    const flying = net.decodeSnap(net.encodeSnap(1, 0)).proj.map(q => q.type); // what a guest is told is in the air
+    return { flying, live: combat.PROJ.some(q => q.type === 'hook') };
+  });
+  expect(snap.live).toBe(true); expect(snap.flying).toContain('hook');
+  await host.waitForFunction(() => window.SH.G.cars[1].towT > 0 || window.SH.G.cars[1].z < 90, null, { timeout: 60_000 });
+  // the guest's own car is pulled toward the truck on its own screen too (it settles where the host has it)
+  await guest.waitForFunction(() => window.SH.G.player.z < 88, null, { timeout: 60_000 });
+  const [mine, onHost] = await Promise.all([guest.evaluate(() => window.SH.G.player.hp), host.evaluate(() => window.SH.G.cars[1].hp)]);
+  expect(onHost).toBeLessThan(108); // the bite hurt
+  expect(mine).toBeLessThanOrEqual(108);
 });

@@ -57,4 +57,4 @@ export type Msg =
   | { t: 'bye' };
 
 /** Version of the messages: players on different versions of the game can't play together. */
-export const PROTOCOL = 1;
+export const PROTOCOL = 2;

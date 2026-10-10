@@ -308,6 +308,21 @@ function fireSpecial(c) {
       muzzle(_mz.x, _mz.y, _mz.z, c.vx, 0, c.vz, 0.12, 3.5, 1, 0xff8030);
       c.vx -= fx * 3; c.vz -= fz * 3; playSfx('cannon', c.x, c.z, 0.9); break;
     }
+    case 'dustdevil': {
+      // a burst of speed, and a wall of dust thrown up behind: three clouds across its wake
+      c.boost = 1.0;
+      for (const [back, side] of [[7, 0], [13, -7], [13, 7]]) addSmoke(c.x - fx * back + fz * side, c.z - fz * back - fx * side);
+      playSfx('whoosh', c.x, c.z, 1);
+      if (c.human) announce(c.pid, 'Sandstorm!', 0.8, true);
+      break;
+    }
+    case 'hookjaw': {
+      const t = findTarget(c, 55, 0.4);
+      c.worldPoint(0, d.gunY + 0.3, d.front + 0.2, _mz);
+      if (t) aimAt(_mz, t, 90, carAim(c), _dir); else c.worldDir(0, 0.02, 1, _dir);
+      spawnProj({ type: 'hook', meshName: 'hook', x: _mz.x, y: _mz.y, z: _mz.z, vx: _dir.x * 90 + c.vx, vy: _dir.y * 90, vz: _dir.z * 90 + c.vz, owner: c, life: 0.75, dmg: 14, r: 0.9 });
+      playSfx('thump', c.x, c.z, 0.9); break;
+    }
     case 'bigchill': {
       const t = lure((G.mode.specialTarget && G.mode.specialTarget(c)) || findTarget(c, 65, 0.5, true));
       c.worldPoint(0, d.gunY + 0.6, d.front + 0.3, _mz);
@@ -319,6 +334,21 @@ function fireSpecial(c) {
   return true;
 }
 
+/** Hookjaw's hook has bitten: the car is reeled in for this long (s), this hard (m/s² on a car of mass 1), until it's this close (m). */
+const TOW_TIME = 0.9, TOW_PULL = 42, TOW_NEAR = 6;
+/** The hook biting, and the cable between the truck and its catch (drawn a few times a second while it reels). */
+const hookBite = effect('hook', (x, y, z) => { sparks(x, y, z, 10); playSfx('winch', x, z, 1); });
+const cable = effect('cable', (ax, ay, az, bx, by, bz) => {
+  for (let i = 0; i <= 8; i++) { const k = i / 8; FX_ADD.spawn(ax + (bx - ax) * k, ay + (by - ay) * k - Math.sin(k * Math.PI) * 0.5, az + (bz - az) * k, 0, 0, 0, 0.12, 0.22, 0.12, 0xe8e0d0, 0x8a8a90, 0.9, 0, 0); }
+});
+/** A car on Hookjaw's cable is pulled toward the truck until the cable's time is up, they meet, or either is wrecked. */
+function towTick(c, dt) {
+  const by = c.towBy; c.towT -= dt;
+  const dx = by ? by.x - c.x : 0, dz = by ? by.z - c.z : 0, dist = Math.hypot(dx, dz);
+  if (!by || !by.alive || !c.alive || c.towT <= 0 || dist < TOW_NEAR || dist > 90) { c.towT = 0; c.towBy = null; return; }
+  const pull = TOW_PULL / c.mass * dt; c.vx += dx / dist * pull; c.vz += dz / dist * pull;
+  if ((c.towT % 0.08) < dt) cable(by.x, by.y + 1.9, by.z, c.x, c.y + 1, c.z);
+}
 /** Moonbeam's good vibrations: two rings, a burst and a boom. */
 const sonicBlast = effect('sonic', (x, y, z) => {
   ring(x, y + 1, z, 24, 0.6, 0xd8a0ff); ring(x, y + 0.5, z, 16, 0.45, 0xffe0a0);
@@ -329,6 +359,7 @@ const sonicBlast = effect('sonic', (x, y, z) => {
 // ================= per-frame weapons =================
 export function tickCarWeapons(c, dt) {
   c.cdMG -= dt; c.cdW -= dt; c.cdS -= dt;
+  if (c.towT > 0) towTick(c, dt);
   if (!c.alive || G.countdown > 0) { c.flameOn = false; return; }
   if (c.mgHeld && c.cdMG <= 0 && !c.mgLocked) fireMG(c);
   if (c.wFire) { fireWeapon(c, c.wCombo); c.wFire = false; c.wCombo = 0; }
@@ -336,10 +367,13 @@ export function tickCarWeapons(c, dt) {
   c.flameOn = !!(c.wHeld && c.weapon === 'flame' && c.ammo.flame > 0 && c.cdW <= 0);
   if (c.flameOn) flameTick(c, dt);
   if (c.sFire) { fireSpecial(c); c.sFire = false; }
-  // afterburner scorches cars behind
+  // afterburner scorches cars behind; a dust devil's wake only stings them
   if (c.boost > 0) {
-    const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw);
-    for (const o of G.cars) { if (o === c || !o.alive) continue; const dx = o.x - c.x, dz = o.z - c.z, d = Math.hypot(dx, dz); if (d < 12 && (dx * fx + dz * fz) / (d || 1) < -0.75) { damageCar(o, 30 * dt, c, 'fire', true); o.burning = Math.max(o.burning, 1.5); o.burnBy = c; } }
+    const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw), dust = c.def.id === 'dustdevil';
+    for (const o of G.cars) {
+      if (o === c || !o.alive) continue; const dx = o.x - c.x, dz = o.z - c.z, d = Math.hypot(dx, dz); if (d >= 12 || (dx * fx + dz * fz) / (d || 1) >= -0.75) continue;
+      if (dust) damageCar(o, 14 * dt, c, 'sand', true); else { damageCar(o, 30 * dt, c, 'fire', true); o.burning = Math.max(o.burning, 1.5); o.burnBy = c; }
+    }
   }
 }
 function projHit(p) {
@@ -430,6 +464,10 @@ function impact(p, car, prop) {
       else sparks(p.x, p.y, p.z, 2);
       break;
     case 'cannon': explode(p.x, p.y, p.z, 3.5, p.dmg, o, { direct: car, size: 0.7, push: 6, lift: 3 }); break;
+    case 'hook':
+      if (car && car.alive && car !== o) { damageCar(car, p.dmg, o, 'hook'); if (car.alive) { car.towBy = o; car.towT = TOW_TIME; } hookBite(p.x, p.y, p.z); }
+      else { if (prop) damageProp(prop, p.dmg, o); sparks(p.x, p.y, p.z, 4); }
+      break;
     case 'missile': explode(p.x, p.y, p.z, 4.2, p.dmg, o, { direct: car, size: 0.9, push: 8, lift: 6 }); break;
     case 'rocket': explode(p.x, p.y, p.z, 2.6, p.dmg, o, { direct: car, size: 0.6, push: 5, lift: 3, spare: p.age < 0.4 ? o : null }); break;
     case 'shell': explode(p.x, p.y, p.z, p.rad, p.dmg, o, { direct: car, size: 1.35, push: 10, lift: 10 }); break;
@@ -451,7 +489,7 @@ function impact(p, car, prop) {
   }
 }
 // for a new host carrying the match on (engine/savestate): projectiles and mines, cars named by pid
-const PROJ_KINDS = ['bullet', 'missile', 'rocket', 'flare', 'shell', 'smokeshell', 'minetoss', 'fireball', 'cannon', 'scrap', 'bomblet', 'ice'];
+const PROJ_KINDS = ['bullet', 'missile', 'rocket', 'flare', 'shell', 'smokeshell', 'minetoss', 'fireball', 'cannon', 'scrap', 'bomblet', 'ice', 'hook'];
 const PROJ_NUMBERS = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'life', 'age', 'id', 'dmg', 'r', 'rad', 'speed', 'maxSpeed', 'turn', 'grav', 'knock', 'spin', 'seeT', 'blind'];
 const pidOf = c => (c && c.pid != null ? c.pid : -1), carOf = pid => (pid >= 0 ? G.cars[pid] || null : null);
 registerState('shots', {

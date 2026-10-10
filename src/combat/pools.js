@@ -35,6 +35,8 @@ export function initPools() {
   makePool('scrap', 16, () => new THREE.Mesh(scrapGeo, MAT_VC));
   const iceMat = new THREE.MeshBasicMaterial({ color: 0x9fe8ff });
   makePool('ice', 12, () => new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 0), iceMat));
+  const hookMat = new THREE.MeshLambertMaterial({ color: 0x9a9aa2 });
+  makePool('hook', 6, () => new THREE.Mesh(new THREE.ConeGeometry(0.28, 1.2, 6).rotateX(Math.PI / 2), hookMat));
   const ringMat = new THREE.MeshBasicMaterial({ color: 0xffe0a0, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
   makePool('ring', 10, () => { const m = new THREE.Mesh(new THREE.RingGeometry(0.85, 1, 40), ringMat.clone()); m.rotation.x = -Math.PI / 2; return m; });
 }

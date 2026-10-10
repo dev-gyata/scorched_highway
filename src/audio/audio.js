@@ -65,6 +65,7 @@ function sound(name, x, z, vol) {
     case 'crash': noiseBurst(t, 1.2, 'lowpass', 800, 80, 0.8 * v); tone(t, 0.9, 'sawtooth', 80, 30, 0.2 * v); break;
     case 'whoosh': noiseBurst(t, 0.6, 'bandpass', 300, 1800, 0.6 * v, 0.8); break;
     case 'sonic': tone(t, 0.7, 'sine', 320, 50, 0.8 * v); tone(t, 0.7, 'square', 160, 40, 0.15 * v); noiseBurst(t, 0.5, 'lowpass', 600, 60, 0.5 * v); break;
+    case 'winch': tone(t, 0.5, 'sawtooth', 90, 240, 0.22 * v); noiseBurst(t, 0.12, 'bandpass', 2400, 1200, 0.3 * v); break;
     case 'ice': tone(t, 0.3, 'triangle', 1800, 600, 0.2 * v); noiseBurst(t, 0.3, 'highpass', 4000, 2000, 0.2 * v); break;
     case 'beep': tone(t, 0.18, 'square', 440, 440, 0.14 * v); break;
     case 'go': tone(t, 0.4, 'square', 880, 880, 0.14 * v); break;

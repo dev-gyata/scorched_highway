@@ -24,6 +24,14 @@ export const CARS = [
     blurb: 'An ice cream truck built like a bank vault. Slow, huge, and cold-hearted.',
     special: { name: 'Brain freeze', desc: 'An icy homing shot that slows and freezes its target.' },
     hp: 225, max: 34, accel: 17, turn: 1.8, grip: 9.0, mass: 1.65, stats: { Speed: 1, Armor: 5, Handling: 1 }, ai: 'rammer', front: 2.6, gunY: 1.6, gunX: 0.8 },
+  { id: 'dustdevil', name: 'Dust Devil', driver: 'Jody Pike', gang: 'Sun Riders', tag: '#a6e36a', color: 0x7ab83c,
+    blurb: 'A fibreglass dune buggy with a roll cage and nothing else. Nobody turns tighter; nearly everybody hits harder.',
+    special: { name: 'Sandstorm', desc: 'A burst of speed and a wall of dust behind you that stings and blinds homing shots.' },
+    hp: 108, max: 51, accel: 34, turn: 2.75, grip: 7.4, mass: 0.72, stats: { Speed: 5, Armor: 1, Handling: 5 }, ai: 'skirmisher', front: 1.9, gunY: 1.14, gunX: 0.52, dirt: 0.55 },
+  { id: 'hookjaw', name: 'Hookjaw', driver: 'Big Ruth Calder', gang: 'Black Hats', tag: '#c79bff', color: 0x5b3f86,
+    blurb: 'A wrecker that has towed half the county, most of it unwillingly.',
+    special: { name: 'Tow hook', desc: 'A harpoon on a cable: whatever it bites gets reeled in.' },
+    hp: 200, max: 39, accel: 21, turn: 2.05, grip: 8.4, mass: 1.5, stats: { Speed: 2, Armor: 4, Handling: 3 }, ai: 'rammer', front: 2.8, gunY: 1.64, gunX: 0.8 },
 ];
 /**
  * Cars for `n` bots: models nobody in `taken` drives first, in random order, then repeats once every model is out.

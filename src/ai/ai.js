@@ -129,6 +129,8 @@ export class AI {
       case 'scorcher': return (a < 0.2 && d > 12 && d < 55) || (c.hp / c.def.hp < 0.25 && a > 2.5 && d < 25);
       case 'lawdog': return this.los && d < 22 && a < 0.3;
       case 'bigchill': return this.los && d < 80 && a < 0.4;
+      case 'dustdevil': return (a > 2.3 && d < 26) || (c.hp / c.def.hp < 0.3 && d < 30); // someone on its tail, or time to run
+      case 'hookjaw': return this.los && a < 0.3 && d > 12 && d < 50;
     }
     return false;
   }

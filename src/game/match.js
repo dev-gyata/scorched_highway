@@ -82,17 +82,17 @@ export function startMatch(roster = soloRoster()) {
 }
 let lastCount = 4;
 // for a new host carrying the match on (engine/savestate): what snapshots don't carry about the cars and the match
-const HIDDEN = ['cdMG', 'cdW', 'cdS', 'gunSide', 'resetCd', 'lastHitTime', 'fellLap', 'hazardT', 'deathTime', 'stuckT', 'turnK', 'gripK'];
+const HIDDEN = ['cdMG', 'cdW', 'cdS', 'gunSide', 'resetCd', 'lastHitTime', 'fellLap', 'hazardT', 'deathTime', 'stuckT', 'turnK', 'gripK', 'towT'];
 const pidOf = c => (c ? c.pid : -1);
 registerState('cars', {
   save: () => G.cars.map(c => ({
-    ...Object.fromEntries(HIDDEN.map(k => [k, c[k]])), lastHitBy: pidOf(c.lastHitBy), burnBy: pidOf(c.burnBy),
+    ...Object.fromEntries(HIDDEN.map(k => [k, c[k]])), lastHitBy: pidOf(c.lastHitBy), burnBy: pidOf(c.burnBy), towBy: pidOf(c.towBy),
     race: c.race && { respawnT: c.race.respawnT, wrongT: c.race.wrongT, lapStart: c.race.lapStart },
   })),
   load: (/** @type {any[]} */ list) => list.forEach((s, pid) => {
     const c = G.cars[pid]; if (!c) return;
     for (const k of HIDDEN) if (Number.isFinite(s[k])) c[k] = s[k]; // numbers only, and only these: it came from another game
-    c.lastHitBy = G.cars[s.lastHitBy] || null; c.burnBy = G.cars[s.burnBy] || null;
+    c.lastHitBy = G.cars[s.lastHitBy] || null; c.burnBy = G.cars[s.burnBy] || null; c.towBy = G.cars[s.towBy] || null;
     if (c.race && s.race) for (const k of ['respawnT', 'wrongT', 'lapStart']) if (Number.isFinite(s.race[k])) c.race[k] = s.race[k];
   }),
 });

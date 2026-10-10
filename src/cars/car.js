@@ -60,6 +60,7 @@ export class Car {
     // status effects and scoring
     this.mgLocked = false; this.shieldT = 0; this.draft = 0; // race rules: machine gun locked until a sword plate; shield plate; slipstream
     this.boost = 0; this.frozen = 0; this.burning = 0; /** @type {Car|null} */ this.burnBy = null; /** @type {Car|null} */ this.lastHitBy = null;
+    /** On Hookjaw's cable: who is reeling this car in, and for how much longer (s). @type {Car|null} */ this.towBy = null; this.towT = 0;
     this.lastHitTime = -99; this.kills = 0; this.dealt = 0; this.flash = 0; this.place = 0; /** @type {Car|null} */ this.wreckedBy = null;
     // body motion and visuals
     this.tumble = 0; this.tumbleV = 0; this.tumbleAxis = 0; this.wheelRot = 0; this.steerVis = 0; this.lean = 0; this.pitch = 0; this.lastVF = 0;
@@ -257,7 +258,9 @@ export class Car {
     }
     if (this.boost > 0) {
       const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw);
-      for (let i = 0; i < 3 * fxScale; i++) FX_ADD.spawn(this.x - fx * 2.2 + rand(-0.4, 0.4), this.y + 0.8, this.z - fz * 2.2 + rand(-0.4, 0.4), -fx * 30 + this.vx * 0.6 + rand(-3, 3), rand(-1, 2), -fz * 30 + this.vz * 0.6 + rand(-3, 3), rand(0.2, 0.4), 1.2, 2.6, 0xfff0a0, 0xff3a10, 0.9, 1, 0);
+      // a dust devil throws sand; anything else with a boost is on its afterburner
+      if (this.def.id === 'dustdevil') for (let i = 0; i < 3 * fxScale; i++) FX_SMOKE.spawn(this.x - fx * 2 + rand(-1, 1), this.y + 0.5, this.z - fz * 2 + rand(-1, 1), -fx * 8 + rand(-4, 4), rand(1, 5), -fz * 8 + rand(-4, 4), rand(0.6, 1.1), 1.4, 5, 0xe0c090, 0xc8a878, 0.7, 1, -1);
+      else for (let i = 0; i < 3 * fxScale; i++) FX_ADD.spawn(this.x - fx * 2.2 + rand(-0.4, 0.4), this.y + 0.8, this.z - fz * 2.2 + rand(-0.4, 0.4), -fx * 30 + this.vx * 0.6 + rand(-3, 3), rand(-1, 2), -fz * 30 + this.vz * 0.6 + rand(-3, 3), rand(0.2, 0.4), 1.2, 2.6, 0xfff0a0, 0xff3a10, 0.9, 1, 0);
     }
     // headlight beams at night
     for (const bm of this.model.beams) bm.visible = curTod.night;

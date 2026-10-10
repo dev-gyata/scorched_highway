@@ -1,6 +1,6 @@
 # Scorched Highway
 
-A free-for-all vehicular combat game set in a 1977 desert ghost town, inspired by late-90s car combat games like Vigilante 8. Six drivers, one arena, a trunk full of rockets — last car running wins.
+A vehicular combat game set in the desert in 1977, inspired by late-90s car combat games like Vigilante 8. Eight cars, two arenas and two race courses, a trunk full of rockets — last car running wins, or first across the line. Play alone against bots or online with up to ten people.
 
 Runs in any modern browser, desktop or phone. Players need nothing installed; developing it needs Node (see below).
 
@@ -54,7 +54,7 @@ In the browser console, `window.SH` exposes the game state and a few entry point
 
 ## Features
 
-- **Six original cars**, each with its own speed, armor, handling and signature special:
+- **Eight original cars**, each with its own speed, armor, handling and signature special:
 
   | Car | Driver | Special |
   | --- | --- | --- |
@@ -64,8 +64,10 @@ In the browser console, `window.SH` exposes the game state and a few entry point
   | Scorcher | Rex Vance | Afterburner (scorches anyone behind) |
   | Lawdog | Deputy Tull | Riot gun (close-range buckshot) |
   | Big Chill | Mister Frost | Brain freeze (homing ice shot that slows) |
+  | Dust Devil | Jody Pike | Sandstorm (a burst of speed and a wall of dust behind: it stings, and homing shots lose you in it) |
+  | Hookjaw | Big Ruth Calder | Tow hook (a harpoon on a cable that reels in whatever it bites) |
 
-- **Two modes on two maps:** *Deathmatch* in the Ghost Town, last car running wins; and *Race* on **Route 67**, three laps from the open desert into the canyons with three forks (mine shaft or dry wash, a cliff road above boulder alley, gorge jump or switchback), boulders and sinkholes. Wrecks in a race respawn after three seconds with half armour.
+- **Two modes on four maps:** *Deathmatch*, last car running wins, in the **Ghost Town** or **The Boneyard** (an aircraft scrapyard on a dry lake: airliners for cover, two of them to drive through, walls of crushed cars and a quarry pit to jump). *Race*, three laps with three forks each, on **Route 67** (open desert into the canyons: mine shaft or dry wash, a cliff road above boulder alley, gorge jump or switchback) or **Salt Lake Run** (round a dried-up lake, faster and more open: over the dam or down the spillway, the pier jump or the shoreline, through the drive-in or round it), with boulders and sinkholes on both. Wrecks in a race respawn after three seconds with half armour.
 - **Death Race plates:** races start with the machine gun locked. *Sword* plates unlock it and hand out a heavy weapon (heavier further back in the field), *shield* plates cut damage to a quarter for eight seconds, and *skull* plates set off the next hazard ahead: a rockfall or a tanker truck driving the wrong way.
 - **Balance:** in races the cars' top speed, acceleration, steering and grip are pulled three quarters of the way to the middle of the field, heavy cars shrug off part of a boulder or truck hit and lose less speed on sand, Big Chill's brain freeze goes for the car just ahead, and Moonbeam's sonic blast shatters fallen boulders. In the arena no more than two bots go after you at once, Scorcher fights hit-and-run, and on touch controls the weapons' lock-on is 50% wider and new players start on Easy.
 - **Race AI:** in a race every bot is matched to the pace of the car you picked (90% on Easy, 99% on Normal, 105% on Hard), brakes only as much as each bend really needs, and takes the risky shortcuts more often the harder the difficulty. Rubber banding then gives bots behind you a little more top speed and bots ahead a little less (scaled by difficulty, off in Settings), and anyone tucked in behind another car gets a slipstream.
@@ -76,7 +78,7 @@ In the browser console, `window.SH` exposes the game state and a few entry point
 - **Arcade driving:** drifts, ramps and dunes for big air, cars that smoke, burn and lose wheels when wrecked.
 - **Where you stand:** your place is always on screen in big numbers (by race position, or by wrecks in a deathmatch), with a list of every driver in order under the radar. Press M (D-pad up, or tap the radar) to switch the radar between what's nearby and the whole map.
 - **Online play:** up to ten drivers with an invite link or a room code, bots optional, on desktops and phones. If the host leaves mid-match, the next player takes over and the match goes on.
-- **Options:** 2–5 opponents, three difficulties, noon / sunset / night (with headlights), view width and camera distance, auto-fire and auto-drift, fast or pretty graphics, sound on/off. Phones and tablets play in landscape.
+- **Options:** 2 to 9 opponents, three difficulties, noon / sunset / night (with headlights), view width and camera distance, auto-fire and auto-drift, fast or pretty graphics, sound on/off. Phones and tablets play in landscape.
 
 ## Controls
 
@@ -160,4 +162,4 @@ Develop it without the internet: open the game with `?net=local` in two tabs (ad
 
 ### Adding a car
 
-Add its stats to `src/cars/roster.js`, write a recipe in `src/cars/recipes/<id>.js` (see `sundowner.js`: a `loftZ` body, `K.sideGlass` / `K.topGlass` windows, `K.decal` livery, lamps, `K.gun`, `K.wheel`), register it in `src/cars/recipes/index.js`, then check it with `npm run shots -- cars <id>`.
+Add its stats to `src/cars/roster.js`, write a recipe in `src/cars/recipes/<id>.js` (see `sundowner.js`: a `loftZ` body, `K.sideGlass` / `K.topGlass` windows, `K.decal` livery, lamps, `K.gun`, `K.wheel`), register it in `src/cars/recipes/index.js`, then check it with `npm run shots -- cars <id>`. Give it a special: a `case` in `fireSpecial` (`src/combat/weapons.js`) and one in `AI.specialOK` (`src/ai/ai.js`) for when its bot uses it. A special with a new kind of projectile needs a mesh pool in `src/combat/pools.js` and the kind added to the end of `PROJ_KINDS` (`weapons.js`) and `PROJ_TYPES` (`src/net/protocol.ts`), with `PROTOCOL` raised in `src/net/types.ts`, since players on the old version can't draw it. `tests/weapons.spec.js` then fires it, and `npm run bots` shows whether the car wins too much or too little.
