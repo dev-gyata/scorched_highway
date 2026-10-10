@@ -65,7 +65,7 @@ async function player(context, name, settings = {}) {
   page.on('pageerror', e => { throw e; });
   await page.route(/fonts\.(googleapis|gstatic)\.com/, r => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
   await page.addInitScript(s => localStorage.setItem('shwy_settings', JSON.stringify(s)), { quality: 'low', name, mode: 'deathmatch', map: 'ghost-town', ...settings });
-  await page.setViewportSize({ width: 640, height: 360 }); // two or three software-rendered tabs: keep them small
+  await page.setViewportSize({ width: 480, height: 270 }); // match netmatch.js: software-rendered tabs share the CPU
   await page.goto('/?net=local');
   await page.waitForFunction(() => window.SH && window.SH.G.state === 'title', null, { timeout: 60_000 });
   return page;
