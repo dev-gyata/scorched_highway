@@ -33,11 +33,14 @@ export function localTransport(id: string, lag = 0): Promise<Transport> {
     close() {
       if (closed) return; closed = true; // leaving: tell the others, but don't report our own links dropping
       for (const to of [...linked]) t.drop(to);
-      removeEventListener('pagehide', bye); setTimeout(() => bc.close(), lag + 50);
+      removeEventListener('beforeunload', bye); removeEventListener('pagehide', bye);
+      setTimeout(() => bc.close(), lag + 50);
     },
     onmessage: () => { }, onopen: () => { }, onclose: () => { },
   };
   const bye = () => t.close();
+  // Announce while the document is still live; pagehide alone can race Chromium's tab teardown.
+  addEventListener('beforeunload', bye);
   addEventListener('pagehide', bye);
   bc.onmessage = ({ data: n }: MessageEvent<Note>) => {
     if (closed) return;
