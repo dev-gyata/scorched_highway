@@ -97,3 +97,25 @@ test('sand is slower than dirt', async ({ page }) => {
   });
   expect(k[0]).toBeLessThan(1); expect(k[1]).toBeGreaterThanOrEqual(1);
 });
+
+test('the Boneyard: planes and car stacks are solid, the gutted shells are open, the pit is below the lake bed and the berm holds cars in', async ({ page }) => {
+  await boot(page);
+  const r = await page.evaluate(() => {
+    const { G, goGarage, startMatch, step, getMap } = window.SH, m = getMap('boneyard'), X = 18000;
+    G.settings.mode = 'deathmatch'; G.settings.map = 'boneyard'; goGarage(); startMatch(); G.countdown = 0; G.ais.length = 0;
+    const p = G.player, drive = (x, z, yaw, frames) => { p.x = X + x; p.z = z; p.y = m.height(p.x, p.z) + 0.5; p.yaw = yaw; p.vx = p.vz = p.vy = 0; for (let i = 0; i < frames; i++) { p.vx = Math.sin(yaw) * 14; p.vz = Math.cos(yaw) * 14; step(1 / 60, 1 / 60); } return [p.x - X, p.z]; }; // pushed along at 14 m/s
+    const through = drive(-40, 112, Math.PI / 2, 240); // east along the gutted airliner at (-14, 112)
+    const into = drive(-95, -50, Math.PI, 240); // south into the side of the airliner at (-95, -78)
+    const out = drive(150, 0, Math.PI / 2, 300); // east at the berm
+    return {
+      plane: m.blocked(X - 95, -78, 0), stack: m.solid(X - 40, m.height(X - 40, -70) + 2, -70), aboveStack: m.solid(X - 40, m.height(X - 40, -70) + 9, -70),
+      shell: m.blocked(X - 14, 112, 1), pit: m.height(X, 0), bed: m.height(X + 100, 0), ramp: m.ramp(X, -56), through, into, out: Math.hypot(...out),
+    };
+  });
+  expect(r.plane).toBe(true); expect(r.stack).toBe(true); expect(r.aboveStack).toBe(false);
+  expect(r.shell).toBe(false); // the way through is clear
+  expect(r.pit).toBeLessThan(r.bed - 4); expect(r.ramp).toBeGreaterThan(2);
+  expect(r.through[0]).toBeGreaterThan(10); expect(Math.abs(r.through[1] - 112)).toBeLessThan(3); // out the far end, still in line
+  expect(r.into[1]).toBeGreaterThan(-78 + 2.4); // stopped at its side
+  expect(r.out).toBeLessThan(176);
+});
