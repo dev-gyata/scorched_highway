@@ -75,9 +75,17 @@ test('garage: picking a mode offers only the maps that host it', async ({ page }
   await expect(mode.locator('span')).toHaveText('Race');
   await expect(map.locator('span')).toHaveText('Route 67');
   await expect(page.locator('#startBtn')).toHaveText('Start the race');
-  // each mode has one map so far, so the map picker has nothing to switch to
-  for (const b of await map.locator('button').all()) await expect(b).toBeDisabled();
-  for (const b of await mode.locator('button').all()) await expect(b).toBeEnabled();
+  // the map picker goes round the maps that host the mode, and no others
+  const offered = async () => {
+    const seen = [];
+    for (;;) { const name = await map.locator('span').textContent(); if (seen.includes(name)) return seen; seen.push(name); if (await map.locator('button').last().isDisabled()) return seen; await map.locator('button').last().click(); } // (one map: nothing to switch to)
+  };
+  const hosts = id => page.evaluate(id => window.SH.allMaps().filter(m => m.modes.includes(id)).map(m => m.name), id);
+  expect((await offered()).sort()).toEqual((await hosts('race')).sort());
+  expect(await hosts('race')).toContain('Salt Lake Run');
+  await mode.locator('button').last().click();
+  await expect(mode.locator('span')).toHaveText('Deathmatch');
+  expect((await offered()).sort()).toEqual((await hosts('deathmatch')).sort());
 });
 
 test('sand is slower than dirt', async ({ page }) => {

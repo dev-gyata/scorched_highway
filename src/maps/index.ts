@@ -2,5 +2,6 @@
 import { registerMap } from './registry';
 import { ghostTown } from './ghost-town';
 import { route67 } from './route67';
+import { saltLake } from './saltlake';
 
-for (const m of [ghostTown, route67]) registerMap(m);
+for (const m of [ghostTown, route67, saltLake]) registerMap(m);
