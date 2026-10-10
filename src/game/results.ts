@@ -23,22 +23,28 @@ export function resultsView(viewer: Car): ResultsView {
   const r = (G.mode as GameMode).results(viewer);
   return { order: r.order.map(c => c.pid), win: r.win, title: r.title, sub: r.sub, tiles: r.tiles, fates: r.order.map(c => r.fate(c)), place: r.order.indexOf(viewer) + 1 };
 }
+/** The results for someone who only watched (they joined an online match part-way): the standings, and who came first. */
+export function watcherView(): ResultsView {
+  const first = (G.mode as GameMode).results((G.cars as Car[])[0]).order[0], v = resultsView(first);
+  return { ...v, win: false, title: 'Match over', sub: `${first.name} came out on top. You’re in the next one.`, tiles: [], place: 0 };
+}
 /** Fill in the results screen for the match that just ended (the mode supplies the content) and add it to the career record. */
 export function showResults(view = resultsView(G.player as Car)) {
-  const p = G.player as Car, cars = G.cars as Car[], place = view.place, win = view.win;
+  const p = (G.watching ? null : G.player) as Car | null, cars = G.cars as Car[], place = view.place, win = view.win; // someone who only watched has no car, and no place
   const title = $('#overTitle'); title.textContent = view.title; title.classList.toggle('lost', !win);
   $('#overSub').textContent = view.sub;
   // online, the host starts the next match; everyone can go back to the lobby or leave
   const again = $('#againBtn') as HTMLButtonElement, guest = !!G.net && G.net.role !== 'host';
   again.textContent = guest ? 'Waiting for host…' : (G.mode as GameMode).againLabel; again.disabled = guest;
   $('#oGarageBtn').textContent = G.net ? 'Back to the lobby' : 'Change car'; $('#oTitleBtn').textContent = G.net ? 'Leave' : 'Title';
-  $('#rPlace').textContent = ordinal(place); $('#rOf').textContent = `of ${cars.length}`;
+  ($('#rPlace').parentNode as HTMLElement).hidden = !p; $('#rPlace').textContent = ordinal(place); $('#rOf').textContent = `of ${cars.length}`;
   $('#rTiles').innerHTML = view.tiles.map(([label, value]) => `<div><b>${esc(String(value))}</b><span>${esc(String(label))}</span></div>`).join('');
   $('#rStandings').innerHTML = view.order.map((pid, i) => {
     const c = cars[pid]; if (!c) return ''; // online, the view comes from the host: only cars that exist here
     const who = c === p ? `You <small>${esc(c.def.name)}</small>` : `${esc(c.name)} <small>${esc(c.def.name)}</small>`;
     return `<li class="${c === p ? 'me' : ''}"><b>${ordinal(i + 1)}</b><i style="background:${c.def.tag}"></i><span class="who">${who}</span><span class="k">${plural(c.kills, 'wreck')}</span><span class="fate">${esc(String(view.fates[i] ?? ''))}</span></li>`;
   }).join('');
+  $('#rBadges').innerHTML = ''; if (!p) return;
   // career record, and anything this match beat
   const c = career(), badges: string[] = [];
   if (win && !c.wins) badges.push('First win!');

@@ -60,13 +60,13 @@ test('two people in one race: both start at the back, and bots are paced to the 
 
 // ---------- online, between tabs (?net=local: a BroadcastChannel stands in for the internet) ----------
 /** Open the game in a new tab of this browser as player `name`, at the title screen. */
-async function player(context, name, settings = {}) {
+async function player(context, name, settings = {}, url = '/?net=local') {
   const page = await context.newPage();
   page.on('pageerror', e => { throw e; });
   await page.route(/fonts\.(googleapis|gstatic)\.com/, r => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
   await page.addInitScript(s => localStorage.setItem('shwy_settings', JSON.stringify(s)), { quality: 'low', name, mode: 'deathmatch', map: 'ghost-town', ...settings });
   await page.setViewportSize({ width: 480, height: 270 }); // match netmatch.js: software-rendered tabs share the CPU
-  await page.goto('/?net=local');
+  await page.goto(url);
   await page.waitForFunction(() => window.SH && window.SH.G.state === 'title', null, { timeout: 60_000 });
   return page;
 }
@@ -176,4 +176,68 @@ test('online: a race starts for everyone, and the guest sees the standings and i
   expect(await guest.evaluate(() => [window.SH.G.mode.id, window.SH.G.map.id])).toEqual(['race', 'route67']); // the host's choice
   await host.evaluate(() => { const { G } = window.SH; G.ais.length = 0; const c = G.cars[1]; c.race.progress.lap = 2; });
   await expect(guest.locator('#alive')).toContainText('Lap 2/3', { timeout: 30_000 });
+});
+
+// ---------- joining by link ----------
+/** The room's invite link, as the lobby shows it (a path on this server). */
+async function invite(host) { const u = new URL(await host.inputValue('#lobbyLink')); return u.pathname + u.search; }
+
+test('online: an invite link brings a friend straight into the room (after asking a new player their name)', async ({ context }) => {
+  test.slow();
+  const host = await player(context, 'Hana'), code = await room(host), link = await invite(host);
+  expect(link).toBe(`/?net=local&join=${code}`);
+  // someone who has played before: no clicks
+  const gus = await player(context, 'Gus', {}, link);
+  await expect(gus.locator('#lobby')).toBeVisible({ timeout: 45_000 });
+  await expect(gus.locator('#lobbyPlayers')).toContainText('Hana');
+  expect(new URL(gus.url()).search).toBe('?net=local'); // used up: a reload doesn't join again
+  // someone new: asked for a name, then in
+  const nia = await player(context, '', {}, link);
+  await expect(nia.locator('#netJoin')).toHaveText(`Join ${code}`);
+  await expect(nia.locator('#netStatus')).toContainText('Pick a name');
+  await nia.fill('#netName', 'Nia'); await nia.press('#netName', 'Enter');
+  await expect(nia.locator('#lobby')).toBeVisible({ timeout: 45_000 });
+  await expect(host.locator('#lobbyPlayers')).toContainText('Nia');
+});
+
+test('online: someone who joins a match part-way watches it, and drives in the next one', async ({ context }) => {
+  test.slow();
+  const host = await player(context, 'Hana'), guest = await player(context, 'Gus');
+  await room(host, guest); const link = await invite(host);
+  await start(host, guest);
+  const late = await player(context, 'Lou', { car: 'bigchill' }, link);
+  await late.waitForFunction(() => window.SH.G.state === 'playing' && window.SH.G.cars.length === 6, null, { timeout: 60_000 });
+  expect(await late.evaluate(() => { const { G } = window.SH; return { watching: G.watching, replica: G.replica, names: G.cars.filter(c => c.human).map(c => c.name) }; }))
+    .toEqual({ watching: true, replica: true, names: ['Hana', 'Gus'] });
+  await expect(late.locator('#hName')).toHaveText('Watching');
+  // the match they're watching moves: the host's car is where the host has it
+  await host.evaluate(() => { const { G } = window.SH; G.countdown = 0; G.ais.length = 0; G.cars[0].x += 20; });
+  const x = await host.evaluate(() => window.SH.G.cars[0].x);
+  await late.waitForFunction(x => Math.abs(window.SH.G.cars[0].x - x) < 3, x, { timeout: 60_000 });
+  // it ends: results without a place of their own, and a car in the rematch
+  await host.evaluate(() => { const { G, damageCar } = window.SH; for (const c of G.cars) if (c.pid !== 1 && c.alive) damageCar(c, 9999, G.cars[1], 'test'); });
+  await expect(late.locator('#over')).toBeVisible({ timeout: 90_000 });
+  await expect(late.locator('#overTitle')).toHaveText('Match over');
+  await expect(late.locator('#overSub')).toContainText('Gus came out on top');
+  await expect(late.locator('.oplace')).toBeHidden();
+  await expect(host.locator('#over')).toBeVisible({ timeout: 90_000 });
+  await host.click('#againBtn');
+  await late.waitForFunction(() => window.SH.G.state === 'playing' && !window.SH.G.watching && window.SH.G.cars.every(c => c.alive), null, { timeout: 60_000 });
+  expect(await late.evaluate(() => { const p = window.SH.G.player; return [p.name, p.def.id, p.human]; })).toEqual(['Lou', 'bigchill', true]);
+});
+
+test('online: the invite link still works after the host who made it has left', async ({ context }) => {
+  test.slow();
+  const host = await player(context, 'Hana'), fay = await player(context, 'Fay');
+  await room(host, fay); const link = await invite(host);
+  await start(host, fay);
+  await host.waitForTimeout(1500);
+  await closeTab(host);
+  await fay.waitForFunction(() => window.SH.net.session.role.name === 'host', null, { timeout: 30_000 });
+  await fay.waitForTimeout(1000); // Fay takes over the room's address
+  const late = await player(context, 'Lou', {}, link);
+  await late.waitForFunction(() => window.SH.G.state === 'playing' && window.SH.G.watching, null, { timeout: 60_000 });
+  const id = await fay.evaluate(() => window.SH.net.session.me);
+  expect(await late.evaluate(() => window.SH.net.session.host)).toBe(id);
+  expect(await fay.evaluate(() => window.SH.net.session.players.map(p => p.name))).toEqual(['Fay', 'Lou']);
 });

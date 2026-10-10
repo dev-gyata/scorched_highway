@@ -10,7 +10,7 @@ import { cycleTarget, flameFX, projectileLook, updateSmoke } from '../combat/wea
 import { collideCars } from '../cars/car.js';
 import { updateRings } from '../combat/effects.js';
 import { takeMesh } from '../combat/pools.js';
-import { emit, muffled, playEffect } from '../engine/events';
+import { ALL, emit, muffled, playEffect } from '../engine/events';
 import { angDiff, clamp, lerp } from '../engine/util.js';
 import { cueCountdown } from '../game/match.js';
 import { G } from '../game/state.js';
@@ -21,11 +21,11 @@ import { mirrorPlates, updatePlates } from '../world/plates';
 import { updateProps } from '../world/props.js';
 import { hostLost, hostSilent, keepCheckpoint, migrated } from './migrate';
 import { type CarSnap, type NetCar, PROJ_MESH, SNAP, type Snap, decodeSnap, encodeInput, kindOf, mapPickups, mapPlates, pickOf } from './protocol';
-import { type Role, S, beginMatch, end, finishMatch, now, sendBytes } from './session';
+import { ROOM, type Role, S, beginMatch, end, finishMatch, now, sayHello, sendBytes } from './session';
 
 const wait = document.getElementById('netWait') as HTMLElement;
 /** Messages only the host may send. */
-const FROM_HOST = new Set(['lobby', 'start', 'ev', 'over', 'lobbyback', 'busy', 'ck']);
+const FROM_HOST = new Set(['lobby', 'start', 'ev', 'over', 'lobbyback', 'busy', 'moved', 'ck']);
 /** How far behind the host other cars are drawn (s), and how often controls go to the host. */
 const DELAY = 0.1, INPUT_RATE = 30;
 /** Own car: how quickly it's eased toward where the host has it (per second), and how far off it may be before it's put there (m). */
@@ -63,11 +63,17 @@ export function guestRole(): Role {
       if (FROM_HOST.has(m.t) && from !== S.host) return; // only the host says how the room and the match are
       switch (m.t) {
         case 'lobby': S.players = m.players; S.opts = m.opts; S.code = m.code; S.host = m.host; meshUp(); S.onlobby(); break;
-        case 'start': reset(); beginMatch(m.seats, m.opts, true); break;
+        case 'start': reset(); beginMatch(m.seats, m.opts, true); if (G.watching) emit({ kind: 'feed', to: ALL, text: 'Match in progress: you’re in for the next one' }); break;
         case 'ev': for (const e of m.e) { try { if (e.kind === 'fx') playEffect(e.name, e.args); else emit(e); } catch { /* one bad event mustn't stop the rest */ } } break;
         case 'over': finishMatch(m.r); break;
         case 'lobbyback': S.seats = null; S.onlobby(); break;
         case 'busy': end(m.why); break;
+        case 'moved': { // the room has a new host: its old address sends us on (session.ts, openDoor)
+          const to = String(m.to), old = S.host, s = S; if (S.players.length || !to.startsWith(ROOM + S.code + '-')) break;
+          S.host = to; S.t.drop(old);
+          S.t.connect(to).then(() => { if (S === s) sayHello(to); }).catch(() => { if (S === s) end('Couldn’t reach that game. Try again.'); });
+          break;
+        }
         case 'ck': if (from === S.host) keepCheckpoint(m); break;
         case 'migrated': migrated(from); break;
         case 'bye': S.t.drop(from); break;
@@ -75,7 +81,7 @@ export function guestRole(): Role {
     },
     frame(rdt) {
       if (S && hostSilent(last >= 0)) { hostLost(); return; }
-      if (!S?.seats || G.state !== 'playing' || (inT -= rdt) > 0) return;
+      if (!S?.seats || G.watching || G.state !== 'playing' || (inT -= rdt) > 0) return;
       inT = 1 / INPUT_RATE;
       const k = (G.player as Car | null)?.ctl; if (!k) return;
       sendBytes(S.host, encodeInput({
@@ -95,12 +101,12 @@ export function guestRole(): Role {
       while (snaps.length > 2 && snaps[1].now <= t) snaps.shift();
       const [a, b] = snaps.length > 1 && snaps[0].now <= t ? [snaps[0], snaps[1]] : [s, s];
       const k = b === a ? 0 : clamp((t - a.now) / (b.now - a.now), 0, 1), ahead = b === a ? clamp(t - s.now, 0, 0.25) : 0;
-      const me = G.player as Car;
+      const me = (G.watching ? null : G.player) as Car | null; // someone who joined part-way only watches
       if (me && G.state === 'playing' && me.alive) controls(me, dt);
       for (const cb of b.cars) {
         const c = G.cars[cb.pid] as Car; if (!c) continue;
         const ca = a.cars.find(o => o.pid === cb.pid) || cb, latest = s.cars.find(o => o.pid === cb.pid) || cb;
-        if (c === me && latest.alive && me.alive && ownSet) { own(c, latest, s, dt); continue; }
+        if (me && c === me && latest.alive && me.alive && ownSet) { own(c, latest, s, dt); continue; }
         state(c, latest); place(c, ca, cb, k, ahead);
         if (c === me) { ownSet = latest.alive; c.speedK = latest.speedK; c.accelK = latest.accelK; }
         c.sampleContacts(); c.visuals(dt);

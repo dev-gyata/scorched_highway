@@ -110,6 +110,8 @@ body[data-device="keys"] .press [data-dev="keys"],body[data-device="pad"] .press
 .field input,.code-in{font:inherit;font-size:19px;font-weight:700;letter-spacing:normal;text-transform:none;color:var(--bone);background:rgba(246,234,212,.07);border:1.5px solid var(--line);border-radius:10px;padding:11px 14px;
   -webkit-user-select:text;user-select:text;touch-action:manipulation;outline:none}
 .field input:focus,.code-in:focus{border-color:var(--sun)}
+.invite{flex-wrap:nowrap;margin:0 0 12px}
+#lobbyLink{-webkit-user-select:text;user-select:text;flex:1;min-width:0;font:inherit;font-size:14px;color:var(--muted);background:rgba(246,234,212,.07);border:1.5px solid var(--line);border-radius:10px;padding:9px 12px}
 .code-in{width:7.2em;text-transform:uppercase;letter-spacing:4px;text-align:center}
 .net-go{margin:16px 0 4px}
 .net-go .or{color:var(--muted);font-size:15px}

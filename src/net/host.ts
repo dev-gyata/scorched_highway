@@ -5,7 +5,7 @@
 import { AI } from '../ai/ai.js';
 import { CARS } from '../cars/roster.js';
 import { ALL, type GameEvent, emit } from '../engine/events';
-import { resultsView } from '../game/results';
+import { resultsView, watcherView } from '../game/results';
 import { G } from '../game/state.js';
 import type { Car } from '../modes/types';
 import { migrated, saveCheckpoint } from './migrate';
@@ -31,13 +31,14 @@ export function hostRole(): Role {
       if (m.t === 'hello') {
         if (S.players.some(p => p.id === from)) return;
         if (m.v !== PROTOCOL) { send(from, { t: 'busy', why: 'That game is on a different version. Reload the page and try again.' }); return; }
-        if (S.seats) { send(from, { t: 'busy', why: 'That game has already started.' }); return; }
         if (S.players.length >= MAX_PLAYERS) { send(from, { t: 'busy', why: 'That game is full.' }); return; }
         const p: Player = { id: from, name: clean(m.name), car: m.car, ready: false, desktop: m.desktop, ping: 0 };
         // desktops before phones (after the host): the order in which players would take over hosting
         const at = m.desktop ? S.players.findIndex((q, i) => i > 0 && !q.desktop) : -1;
         if (at > 0) S.players.splice(at, 0, p); else S.players.push(p);
         shareLobby();
+        // a match is on: they watch it, and drive in the next one
+        if (S.seats) { send(from, { t: 'start', seats: S.seats, opts: S.opts }); if (G.state === 'over') send(from, { t: 'over', r: watcherView() }); }
       } else if (m.t === 'me') {
         const p = S.players.find(q => q.id === from); if (!p || S.seats) return;
         if (m.name != null) p.name = clean(m.name);
@@ -59,14 +60,14 @@ export function hostRole(): Role {
       }
       if ((ckT -= rdt) <= 0) { ckT = CHECKPOINT_EVERY; saveCheckpoint(); }
       // the match just ended: everyone gets their own results
-      if (G.state === 'over' && !over) for (const p of others()) { const c = G.cars[pidOf(p.id)] as Car; if (c) send(p.id, { t: 'over', r: resultsView(c) }); }
+      if (G.state === 'over' && !over) for (const p of others()) { const c = G.cars[pidOf(p.id)] as Car | undefined; send(p.id, { t: 'over', r: c ? resultsView(c) : watcherView() }); }
       over = G.state === 'over';
     },
     closed(id) {
       if (!S) return;
       const i = S.players.findIndex(p => p.id === id); if (i < 0) return;
       const who = S.players[i]; S.players.splice(i, 1); last.delete(id);
-      if (S.seats) retire(pidOf(id), who.name);
+      if (S.seats && pidOf(id) >= 0) retire(pidOf(id), who.name);
       shareLobby();
     },
   };

@@ -12,7 +12,7 @@ import { G } from '../game/state.js';
 import { newControls } from '../input/input.js';
 import { guestRole } from './guest';
 import { hostRole, retire, shareLobby } from './host';
-import { S, broadcast, end, now } from './session';
+import { S, broadcast, closeDoor, end, now, openDoor } from './session';
 
 /** Seconds of silence before the host counts as gone, and before a successor that never speaks up is passed over. */
 export const SILENT = 1.5, WAIT = 3;
@@ -25,6 +25,8 @@ export function saveCheckpoint() { if (S?.seats) broadcast({ t: 'ck', d: JSON.st
 /** Guest: keep the latest checkpoint. */
 export function keepCheckpoint(m: { d: string }) { try { ck = JSON.parse(m.d); } catch { /* a garbled one: keep the last */ } }
 
+/** Who takes over, in order: the people in the match in lobby order, then anyone watching it. */
+const order = () => (S ? [...S.line, ...S.players.map(p => p.id).filter(id => !S!.line.includes(id))] : []);
 let checked = 0;
 /**
  * Guest, in a match: has the host (or the successor we're waiting on) gone quiet? Only once the match is under way
@@ -46,18 +48,20 @@ export function hostLost() {
   if (!S.seats) { end(`${name} closed the game.`); return; }
   S.players = S.players.filter(p => p.id !== gone); S.t.drop(gone);
   const t = now();
-  const next = S.players.find(p => p.id === S!.me || (S!.t.links().includes(p.id) && t - (S!.heard.get(p.id) ?? 0) < SILENT * 2));
+  const here = (id: string) => S!.players.some(p => p.id === id) && (id === S!.me || (S!.t.links().includes(id) && t - (S!.heard.get(id) ?? 0) < SILENT * 2));
+  const next = S.players.find(p => p.id === order().find(here));
   if (!next || next.id === S.me) { takeOver(); return; }
   if (claim.from === next.id && t - claim.at < WAIT) { S.host = next.id; waiting = ''; S.role.rehost?.(); return; } // it already has
   S.host = next.id; waiting = next.id; waitUntil = t + WAIT; S.role.rehost?.();
 }
 /** A successor has taken over (`from`). If we took over too and come later in line, we hand it back. */
 export function migrated(from: string) {
-  if (!S || !S.seats || S.line.indexOf(from) < 0) return; // only someone in this match's line can take it over
+  const line = order();
+  if (!S || !S.seats || line.indexOf(from) < 0) return; // only someone in this match's line can take it over
   const hostHere = S.role.name === 'guest' && !waiting && S.host !== from && now() - (S.heard.get(S.host) ?? 0) < SILENT;
   if (hostHere) { claim = { from, at: now() }; return; } // and not while the host is still with us
   waiting = '';
-  if (S.role.name === 'host') { if (S.line.indexOf(from) >= 0 && S.line.indexOf(from) < S.line.indexOf(S.me)) { S.role.dispose?.(); G.replica = true; S.role = guestRole(); } else return; }
+  if (S.role.name === 'host') { if (line.indexOf(from) < line.indexOf(S.me)) { S.role.dispose?.(); closeDoor(); G.replica = true; S.role = guestRole(); } else return; }
   S.host = from; S.role.rehost?.();
 }
 
@@ -80,7 +84,7 @@ function takeOver() {
   }
   S.role = hostRole();
   broadcast({ t: 'migrated', host: S.me });
-  shareLobby();
+  shareLobby(); openDoor();
   const me = S.players.find(p => p.id === S!.me);
   emit({ kind: 'feed', to: ALL, text: `${me?.name || 'You'} is hosting now` });
 }

@@ -9,7 +9,7 @@ import { G, saveSettings } from '../game/state.js';
 import type { ResultsView } from '../game/results';
 import { localTransport } from './local';
 import { peerTransport } from './peer';
-import type { MatchOpts, Msg, Player, Seat, Transport } from './types';
+import { type MatchOpts, type Msg, PROTOCOL, type Player, type Seat, type Transport } from './types';
 
 /** A role: what this player does with what arrives, every frame, and when someone's link drops. */
 export interface Role {
@@ -30,6 +30,8 @@ export interface Session {
   players: Player[]; opts: MatchOpts;
   /** The match being played, if one is (seats in pid order), and its people in lobby order: the line to take over as host. */
   seats: Seat[] | null; line: string[];
+  /** The room's code and link no longer reach it: the host who opened it left, and its address couldn't be taken over. */
+  shut: boolean;
   /** When each link was last heard from (s), and its round trip (ms). */
   heard: Map<string, number>; rtt: Map<string, number>;
   /** Called when the lobby changes (lobby.ts redraws), and when a match starts. */
@@ -57,7 +59,7 @@ export const hostOpts = (): MatchOpts => ({ mode: G.settings.mode, map: G.settin
 /** Start a session on transport `t`, as `role`. */
 let own: Partial<typeof G.settings> = {};
 export function begin(t: Transport, code: string, host: string, role: Role, players: Player[]): Session {
-  S = { t, code, me: t.id, host, role, players, opts: hostOpts(), seats: null, line: [], heard: new Map(), rtt: new Map(), onlobby: () => { }, onstart: () => { }, onend: () => { } };
+  S = { t, code, me: t.id, host, role, players, opts: hostOpts(), seats: null, line: [], shut: false, heard: new Map(), rtt: new Map(), onlobby: () => { }, onstart: () => { }, onend: () => { } };
   own = role.name === 'guest' ? { mode: G.settings.mode, map: G.settings.map, difficulty: G.settings.difficulty, tod: G.settings.tod } : {}; // a guest plays the host's choices, then gets its own back
   // Messages come from other people's games: anything that isn't what we expect, or trips us up, is dropped
   // rather than allowed to stop this game.
@@ -81,13 +83,34 @@ export function begin(t: Transport, code: string, host: string, role: Role, play
 /** Leave the room (`why` says why, when it wasn't this player's choice). */
 export function end(why?: string) {
   if (!S) return;
-  const s = S; S = null; s.role.dispose?.();
+  const s = S; S = null; s.role.dispose?.(); closeDoor();
   for (const id of s.t.links()) s.t.send(id, JSON.stringify({ t: 'bye' } satisfies Msg), true);
   setTimeout(() => s.t.close(), 100);
   G.net = null; G.replica = false;
   Object.assign(G.settings, own); saveSettings();
   s.onend(why);
 }
+
+/** Ask the host at `to` for a place in its room. */
+export const sayHello = (to: string) => send(to, { t: 'hello', name: G.settings.name || 'Driver', car: G.settings.car, desktop: !isTouch, v: PROTOCOL });
+
+// The room's code and link are the address of the player who opened it. When another player takes over as host
+// (migrate.ts), it answers at that address too, sending whoever knocks on to its own, so the same code and link
+// keep working. The address only frees up once the old host is really gone, so it tries for a while.
+let door: Transport | null = null, doorTry = 0;
+export function openDoor(tries = 8) {
+  if (!S || door || S.me === ROOM + S.code) return;
+  const s = S, n = ++doorTry, mine = () => S === s && s.role.name === 'host' && n === doorTry;
+  openTransport(ROOM + s.code).then(t => {
+    if (!mine()) { t.close(); return; }
+    door = t; s.shut = false;
+    t.onopen = from => t.send(from, JSON.stringify({ t: 'moved', to: s.me } satisfies Msg), true);
+  }).catch(() => {
+    if (tries > 1) setTimeout(() => { if (mine()) openDoor(tries - 1); }, 1500);
+    else if (mine()) { s.shut = true; s.onlobby(); }
+  });
+}
+export function closeDoor() { doorTry++; door?.close(); door = null; }
 
 export const send = (to: string, m: Msg) => S?.t.send(to, JSON.stringify(m), true);
 export const sendBytes = (to: string, b: ArrayBuffer, reliable = false) => S?.t.send(to, b, reliable);

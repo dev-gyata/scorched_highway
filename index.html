@@ -71,6 +71,7 @@
       <button class="btn primary" id="resumeBtn">Resume</button>
       <button class="btn ghost" id="restartBtn">Restart</button>
       <button class="btn ghost" id="quitBtn">Back to garage</button>
+      <button class="btn ghost" id="inviteBtn" hidden>Invite</button>
       <button class="btn ghost" id="pHelpBtn">Controls</button>
       <button class="btn ghost" id="pSetBtn">Settings</button>
     </div>
@@ -99,7 +100,7 @@
   <div class="card net">
     <div class="stripes"></div>
     <h2>Play online</h2>
-    <p>Up to six drivers. One of you hosts; the others join with the room code.</p>
+    <p id="netIntro">Up to six drivers. One of you hosts and sends the others a link (or the room code).</p>
     <label class="field"><span>Your name</span><input id="netName" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="Driver"></label>
     <div class="row net-go">
       <button class="btn primary" id="netHost">Host a game</button>
@@ -116,7 +117,8 @@
   <div class="card net">
     <div class="stripes"></div>
     <h2>Room <span class="code" id="lobbyCode"></span></h2>
-    <p id="lobbyHint">Friends join from Play online with this code.</p>
+    <p id="lobbyHint">Send friends this link: it brings them straight here. Or they can join from Play online with the code.</p>
+    <div class="row invite"><input id="lobbyLink" readonly aria-label="Invite link"><button class="btn ghost" id="lobbyShare">Copy link</button></div>
     <ol class="players" id="lobbyPlayers"></ol>
     <div class="host-opts" id="lobbyOpts">
       <div class="cyc" data-opt="mode"></div>
@@ -129,7 +131,6 @@
     <div class="row">
       <button class="btn primary" id="lobbyGo">Start</button>
       <button class="btn ghost" id="lobbyCar">Change car</button>
-      <button class="btn ghost" id="lobbyShare">Copy code</button>
       <button class="btn ghost" id="lobbyLeave">Leave</button>
     </div>
   </div>

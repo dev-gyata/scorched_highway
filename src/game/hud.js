@@ -35,11 +35,12 @@ function wreckLine(e, me) {
 }
 // match events (engine/events) meant for this screen's driver, or for everyone
 onEvent(e => {
-  const me = G.player; if (!me) return;
-  if (e.kind === 'wreck') { const line = wreckLine(e, me); if (line) feed(line, e.by === me.pid || e.victim === me.pid); return; }
-  if (e.kind === 'fx' || (e.to !== ALL && e.to !== me.pid)) return;
+  if (!G.player) return;
+  const me = G.watching ? null : G.player, pid = me ? me.pid : -2; // someone only watching is nobody's driver
+  if (e.kind === 'wreck') { const line = wreckLine(e, me); if (line) feed(line, e.by === pid || e.victim === pid); return; }
+  if (e.kind === 'fx' || (e.to !== ALL && e.to !== pid)) return;
   if (e.kind === 'big') bigText(e.text, e.dur, e.small);
-  else if (e.kind === 'feed') { if (e.skip !== me.pid) feed(e.text, e.mine); }
+  else if (e.kind === 'feed') { if (e.skip !== pid) feed(e.text, e.mine); }
   else if (e.kind === 'hit') hudHit(e.amt);
   else if (e.kind === 'sound') playSfx(e.name);
 });

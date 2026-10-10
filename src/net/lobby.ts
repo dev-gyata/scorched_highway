@@ -7,8 +7,7 @@ import { G, saveSettings } from '../game/state.js';
 import { guestRole } from './guest';
 import { hostRole, lobbyOnline, shareLobby, startOnline } from './host';
 import { netError } from './peer';
-import { ROOM, S, begin, end, meAsPlayer, newCode, openTransport, send } from './session';
-import { PROTOCOL } from './types';
+import { ROOM, S, begin, end, meAsPlayer, newCode, openTransport, sayHello, send } from './session';
 
 const status = (el: string, text: string) => { $(el).textContent = text; };
 let busy = false;
@@ -16,24 +15,29 @@ let busy = false;
 /** Wire up the online screens (once, at boot). */
 export function setupOnline() {
   const name = $('#netName') as HTMLInputElement, code = $('#netCode') as HTMLInputElement;
-  $('#toOnline').addEventListener('click', () => { name.value = G.settings.name || ''; status('#netStatus', ''); show('online'); });
+  $('#toOnline').addEventListener('click', () => { name.value = G.settings.name || ''; status('#netStatus', ''); $('#netJoin').textContent = 'Join'; show('online'); });
   $('#netBack').addEventListener('click', () => show('title'));
-  name.addEventListener('change', () => { G.settings.name = name.value.trim().slice(0, 16); saveSettings(); });
+  name.addEventListener('change', keepName);
+  name.addEventListener('keydown', e => { if (e.key === 'Enter' && code.value.length === 5) { keepName(); join(code.value); } });
   code.addEventListener('input', () => { code.value = code.value.toUpperCase().replace(/[^A-Z]/g, ''); });
   code.addEventListener('keydown', e => { if (e.key === 'Enter') join(code.value); });
   $('#netHost').addEventListener('click', host);
-  $('#netJoin').addEventListener('click', () => join(code.value));
+  $('#netJoin').addEventListener('click', () => { keepName(); join(code.value); });
   $('#lobbyGo').addEventListener('click', () => {
     if (!S) return;
     if (S.role.name === 'host') startOnline();
     else { const me = S.players.find(p => p.id === S!.me); send(S.host, { t: 'me', ready: !me?.ready }); }
   });
   $('#lobbyCar').addEventListener('click', () => { document.body.classList.add('picking'); goGarage(); $('#startBtn').textContent = 'Back to the lobby'; });
-  $('#lobbyShare').addEventListener('click', share);
+  $('#lobbyShare').addEventListener('click', e => share(e.currentTarget as HTMLElement));
+  $('#inviteBtn').addEventListener('click', e => share(e.currentTarget as HTMLElement));
+  $('#lobbyLink').addEventListener('focus', e => (e.target as HTMLInputElement).select());
   $('#lobbyLeave').addEventListener('click', leaveOnline);
   // the host's choices: the pickers save to settings (game/screens.js); tell everyone
   $('#lobbyOpts').addEventListener('click', () => { if (S?.role.name === 'host') shareLobby(); });
 }
+
+function keepName() { G.settings.name = ($('#netName') as HTMLInputElement).value.trim().slice(0, 16); saveSettings(); }
 
 async function host() {
   if (busy) return; busy = true; status('#netStatus', 'Opening a room…');
@@ -56,7 +60,7 @@ async function join(raw: string) {
     const t = await openTransport(ROOM + c + '-' + Math.random().toString(36).slice(2, 8));
     try { await t.connect(ROOM + c); } catch (e) { t.close(); throw e; }
     const s = begin(t, c, ROOM + c, guestRole(), []); hooks(s);
-    send(s.host, { t: 'hello', name: G.settings.name || 'Driver', car: G.settings.car, desktop: !isTouch, v: PROTOCOL });
+    sayHello(s.host);
     // the lobby (or a "no") should come back at once
     setTimeout(() => { if (S === s && !s.players.length) end('No answer from that game. Try again.'); }, 8000);
   } catch (e) { status('#netStatus', netError(e)); }
@@ -80,7 +84,7 @@ function toLobby() { document.body.classList.remove('picking'); goTitle(); show(
 function render() {
   if (!S) return;
   const hostHere = S.role.name === 'host';
-  $('#lobbyCode').textContent = S.code;
+  $('#lobbyCode').textContent = S.code; ($('#lobbyLink') as HTMLInputElement).value = S.shut ? '' : inviteLink();
   const list = $('#lobbyPlayers'); list.innerHTML = '';
   for (const p of S.players) {
     const li = document.createElement('li'), d = CAR_BY_ID[p.car];
@@ -98,17 +102,25 @@ function render() {
   go.textContent = hostHere ? 'Start' : me?.ready ? 'Not ready' : 'Ready';
   go.disabled = hostHere && S.players.length < 2 && G.settings.bots === 'off';
   const opts = S.opts, mode = opts.mode === 'race' ? 'Race' : 'Deathmatch';
-  status('#lobbyNote', hostHere
+  status('#lobbyNote', S.shut ? 'The invite link and code stopped working when the first host left. Open a new room to invite more people.' : hostHere
     ? (isTouch ? 'Hosting works best on a computer: the host’s device runs the whole match.' : S.players.length < 2 ? 'Waiting for drivers… or start now against bots.' : '')
     : `${mode} · ${opts.bots === 'fill' ? 'bots fill the field' : 'no bots'} · the host starts the match`);
 }
-async function share() {
-  if (!S) return;
-  const url = `${location.origin}${location.pathname}?join=${S.code}`, text = `Join my Scorched Highway game: room ${S.code}`;
+/** The link that brings someone straight into this room. */
+function inviteLink() {
+  const u = new URL(location.href), keep = new URLSearchParams(), q = u.searchParams;
+  for (const k of ['net', 'lag']) if (q.has(k)) keep.set(k, q.get(k)!); // playing between tabs (local.ts): so must they
+  keep.set('join', S!.code); u.search = keep.toString(); u.hash = '';
+  return u.href;
+}
+/** Send the invite: the phone's share sheet, or the clipboard (`btn` says it's done). */
+async function share(btn: HTMLElement) {
+  if (!S || S.shut) return;
+  const url = inviteLink(), label = btn.textContent;
   try {
-    if (navigator.share && isTouch) await navigator.share({ title: 'Scorched Highway', text, url });
-    else { await navigator.clipboard.writeText(S.code); status('#lobbyNote', 'Room code copied.'); }
-  } catch { /* cancelled */ }
+    if (navigator.share && isTouch) await navigator.share({ title: 'Scorched Highway', text: `Join my Scorched Highway game (room ${S.code})`, url });
+    else { await navigator.clipboard.writeText(url); btn.textContent = 'Link copied'; setTimeout(() => { btn.textContent = label; }, 1800); }
+  } catch { /* cancelled, or no clipboard: the link is there to copy by hand */ }
 }
 
 /** Back from choosing a car in the garage: tell the room. */
@@ -124,10 +136,14 @@ export function playAgain() { if (S?.role.name === 'host') startOnline(); }
 /** Results' second button, online: back to the lobby (the host takes everyone). */
 export function backToLobby() { if (S?.role.name === 'host') lobbyOnline(); toLobby(); }
 export function leaveOnline() { end(); goTitle(); }
-/** A ?join=CODE link: open Play online with the code filled in. */
+/** A ?join=CODE link: join that room at once (or ask for a name first, if this player hasn't one yet). */
 export function openFromLink() {
-  const q = new URLSearchParams(location.search).get('join'); if (!q) return;
-  ($('#netCode') as HTMLInputElement).value = q.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 5);
-  ($('#netName') as HTMLInputElement).value = G.settings.name || '';
-  show('online');
+  const q = new URLSearchParams(location.search), raw = q.get('join'); if (!raw) return;
+  const code = raw.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 5), name = $('#netName') as HTMLInputElement;
+  q.delete('join'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '')); // used: a reload shouldn't join again
+  ($('#netCode') as HTMLInputElement).value = code; name.value = G.settings.name || '';
+  status('#netStatus', ''); show('online');
+  if (code.length !== 5) { status('#netStatus', 'That invite link isn’t complete. Ask for it again, or type the room code.'); return; }
+  if (G.settings.name) join(code);
+  else { status('#netStatus', `You’re invited to room ${code}. Pick a name, then join.`); $('#netJoin').textContent = `Join ${code}`; name.focus(); }
 }

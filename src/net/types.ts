@@ -43,6 +43,7 @@ export interface Seat { car: string; human: boolean; name: string; id?: string }
 export type Msg =
   | { t: 'hello'; name: string; car: string; desktop: boolean; v: number }
   | { t: 'busy'; why: string }
+  | { t: 'moved'; to: string }
   | { t: 'lobby'; code: string; host: string; players: Player[]; opts: MatchOpts }
   | { t: 'me'; name?: string; car?: string; ready?: boolean }
   | { t: 'start'; seats: Seat[]; opts: MatchOpts }

@@ -64,17 +64,18 @@ export function startMatch(roster = soloRoster()) {
   const { mode, map } = chosen(); G.mode = mode; G.map = map;
   if (!map.isBuilt()) { const t = performance.now(); map.build(G.settings.quality === 'low'); performance.measure('map:build', { start: t }); }
   const diff = DIFF[G.settings.difficulty];
+  G.watching = !roster.some(s => s.local); // nobody here drives: this screen follows the first car
   roster.forEach((s, pid) => {
     const def = CAR_BY_ID[s.car] || CARS[0], c = new Car(def, { human: s.human, name: s.name || def.driver, pid });
     c.speedK = s.human ? 1 : diff.speed;
     G.cars.push(c);
     if (s.human) c.ctl = newControls(); else G.ais.push(new AI(c));
-    if (s.local) G.player = c;
+    if (s.local || (G.watching && !pid)) G.player = c;
   });
   mode.setup(G.cars, map);
   G.time = 0; G.clock = 0; G.countdown = 3.2; G.endT = -1; G.result = null; G.slowT = 0; G.timeScale = 1; G.shake = 0;
   const p = G.player; CAM.yaw = p.yaw; CAM.x = p.x - Math.sin(p.yaw) * 30; CAM.z = p.z - Math.cos(p.yaw) * 30; CAM.y = p.y + 14;
-  hud.cache = {}; hud.hName.textContent = p.def.name; hud.hName.style.color = p.def.tag;
+  hud.cache = {}; hud.hName.textContent = G.watching ? 'Watching' : p.def.name; hud.hName.style.color = p.def.tag;
   buildTags(); show(null); $('#hud').hidden = false; G.state = 'playing'; lastCount = 4;
   resize();
   renderer.compile(scene, camera); // compile every shader now (pooled effects included) instead of stuttering when they first appear
@@ -114,7 +115,7 @@ export function endMatch(view) {
 export function pauseGame() {
   if (G.state !== 'playing') return;
   if (!G.net) G.state = 'paused';
-  $('#restartBtn').hidden = !!G.net; $('#quitBtn').textContent = G.net ? 'Leave the match' : 'Back to garage';
+  $('#restartBtn').hidden = !!G.net; $('#inviteBtn').hidden = !G.net; $('#quitBtn').textContent = G.net ? 'Leave the match' : 'Back to garage';
   show('pause'); for (const k in KEYS) KEYS[k] = false;
 }
 export function resumeGame() { if (G.state !== 'paused' && !(G.net && G.state === 'playing')) return; G.state = 'playing'; show(null); }
@@ -131,7 +132,7 @@ export function step(dt, rdt) {
   for (let i = G.delayed.length - 1; i >= 0; i--) { const d = G.delayed[i]; d.t -= dt; if (d.t <= 0) { G.delayed.splice(i, 1); d.fn(); } }
   if (G.countdown > 0) { G.countdown -= rdt; cueCountdown(); } else G.clock += dt;
   G.time += dt;
-  if (G.state === 'playing' && p.alive && p.ctl) readControls(p, dt, p.ctl); // this screen's driver; others' controls come from afar (src/net)
+  if (G.state === 'playing' && !G.watching && p.alive && p.ctl) readControls(p, dt, p.ctl); // this screen's driver; others' controls come from afar (src/net)
   for (const c of G.cars) {
     if (!c.human || !c.ctl) continue;
     if (c.alive && G.state === 'playing') applyControls(c, c.ctl); else { c.mgHeld = c.wHeld = false; c.input.throttle = 0; c.input.steer = 0; }

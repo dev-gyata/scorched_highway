@@ -6,6 +6,8 @@ import { isTouch, loadStore, store } from '../engine/util.js';
 export const G = {
   /** `net`: the online session, if any (src/net sets it); `replica`: this screen mirrors a match run on another one (an online guest), so it deals no damage and breaks nothing itself. */
   net: null, replica: false,
+  /** Nobody at this screen drives in this match (they joined an online match part-way): it follows a car and shows the match. */
+  watching: false,
   state: 'loading', cars: [], ais: [], player: null, time: 0, clock: 0, countdown: 0, slowT: 0, timeScale: 1,
   shake: 0, endT: -1, result: null, delayed: [], showcase: null, showIn: null, playerDef: null,
   /** @type {import('../modes/types').GameMode} the current match's rules */ mode: null, /** @type {import('../maps/types').GameMap} where it's played */ map: null, menuT: 0,
