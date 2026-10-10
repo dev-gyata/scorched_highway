@@ -84,6 +84,19 @@ export function updateHUD(dt) {
   drawRadar();
   updateTags();
 }
+// ================= zoomed pages =================
+/**
+ * Lay the HUD out in the part of the page that's on screen. Normally that's all of it; if the page has been zoomed
+ * (a browser that zooms in on a text field, a pinch that got through), the controls stay within reach instead of
+ * sitting off screen at the page's edges. `vv`: the visual viewport (tests pass their own).
+ */
+export function fitHud(vv = window.visualViewport) {
+  if (!vv) return;
+  const s = $('#hud').style, zoomed = vv.scale > 1.01 || vv.offsetLeft > 0.5 || vv.offsetTop > 0.5;
+  s.inset = zoomed ? 'auto' : ''; s.left = zoomed ? vv.offsetLeft + 'px' : ''; s.top = zoomed ? vv.offsetTop + 'px' : '';
+  s.width = zoomed ? vv.width + 'px' : ''; s.height = zoomed ? vv.height + 'px' : '';
+}
+if (window.visualViewport) for (const type of ['resize', 'scroll']) window.visualViewport.addEventListener(type, () => fitHud());
 // ================= where you stand =================
 const TH = n => (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
 let standT = 0;

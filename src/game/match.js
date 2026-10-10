@@ -15,14 +15,14 @@ import { registerState } from '../engine/savestate';
 import { applyTod } from '../engine/sky';
 import { $ } from '../engine/util.js';
 import { CAM } from './camera.js';
-import { TAGS, bigText, buildTags, hud } from './hud.js';
+import { bigText, buildTags, fitHud, hud, TAGS } from './hud.js';
 import { resize } from './loop.js';
 import { clearShowcase, show } from './screens.js';
 import { showResults } from './results';
 import { MENU_MAP, allMaps, getMap } from '../maps/registry';
 import { allModes, getMode } from '../modes/registry';
 import { G } from './state.js';
-import { KEYS, applyControls, newControls, readControls } from '../input/input.js';
+import { KEYS, applyControls, newControls, readControls, releaseTouch } from '../input/input.js';
 import { clearHazards, updateHazards } from '../world/hazards';
 import { resetPickups, updatePickups } from '../world/pickups';
 import { resetPlates, updatePlates } from '../world/plates';
@@ -77,6 +77,7 @@ export function startMatch(roster = soloRoster()) {
   const p = G.player; CAM.yaw = p.yaw; CAM.x = p.x - Math.sin(p.yaw) * 30; CAM.z = p.z - Math.cos(p.yaw) * 30; CAM.y = p.y + 14;
   hud.cache = {}; hud.hName.textContent = G.watching ? 'Watching' : p.def.name; hud.hName.style.color = p.def.tag;
   buildTags(); show(null); $('#hud').hidden = false; G.state = 'playing'; lastCount = 4;
+  releaseTouch(); fitHud(); // nothing held over from the last match; the controls where the screen is
   resize();
   renderer.compile(scene, camera); // compile every shader now (pooled effects included) instead of stuttering when they first appear
 }
@@ -107,7 +108,7 @@ export function onCarKilled(c, by) {
 }
 /** The match is over: results (online guests are handed theirs by the host). */
 export function endMatch(view) {
-  G.state = 'over';
+  G.state = 'over'; releaseTouch(); // the HUD goes from under any thumb on it
   showResults(view);
   show('over'); $('#hud').hidden = true; resize();
 }
@@ -116,9 +117,9 @@ export function pauseGame() {
   if (G.state !== 'playing') return;
   if (!G.net) G.state = 'paused';
   $('#restartBtn').hidden = !!G.net; $('#inviteBtn').hidden = !G.net; $('#quitBtn').textContent = G.net ? 'Leave the match' : 'Back to garage';
-  show('pause'); for (const k in KEYS) KEYS[k] = false;
+  show('pause'); for (const k in KEYS) KEYS[k] = false; releaseTouch();
 }
-export function resumeGame() { if (G.state !== 'paused' && !(G.net && G.state === 'playing')) return; G.state = 'playing'; show(null); }
+export function resumeGame() { if (G.state !== 'paused' && !(G.net && G.state === 'playing')) return; G.state = 'playing'; show(null); releaseTouch(); }
 /** The countdown's beeps and big numbers, from G.countdown (online guests run it from the host's countdown). */
 export function cueCountdown() {
   const n = Math.max(0, Math.ceil(G.countdown - 0.2)); if (n === lastCount) return;

@@ -111,7 +111,7 @@ body[data-device="keys"] .press [data-dev="keys"],body[data-device="pad"] .press
   -webkit-user-select:text;user-select:text;touch-action:manipulation;outline:none}
 .field input:focus,.code-in:focus{border-color:var(--sun)}
 .invite{flex-wrap:nowrap;margin:0 0 12px}
-#lobbyLink{-webkit-user-select:text;user-select:text;flex:1;min-width:0;font:inherit;font-size:14px;color:var(--muted);background:rgba(246,234,212,.07);border:1.5px solid var(--line);border-radius:10px;padding:9px 12px}
+#lobbyLink{-webkit-user-select:text;user-select:text;flex:1;min-width:0;font:inherit;font-size:16px;color:var(--muted);background:rgba(246,234,212,.07);border:1.5px solid var(--line);border-radius:10px;padding:9px 12px}
 .code-in{width:7.2em;text-transform:uppercase;letter-spacing:4px;text-align:center}
 .net-go{margin:16px 0 4px}
 .net-go .or{color:var(--muted);font-size:15px}
@@ -200,7 +200,7 @@ kbd{font-family:var(--ui);font-weight:700;background:rgba(246,234,212,.12);borde
 #feed div.me{background:rgba(242,177,52,.9);color:var(--ink)}
 @keyframes feedIn{from{transform:translateY(-6px);opacity:0}}
 .hud-tr{position:absolute;right:max(14px,env(safe-area-inset-right));top:calc(12px + env(safe-area-inset-top));display:flex;gap:10px;align-items:flex-start}
-#radar{width:132px;height:132px;border-radius:50%;pointer-events:auto;cursor:pointer;touch-action:manipulation}
+#radar{width:132px;height:132px;border-radius:50%;pointer-events:auto;cursor:pointer;touch-action:none}
 .rcol{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
 /* where you stand: the big place, and everyone in order under the radar */
 #place{display:flex;align-items:baseline;margin:0 0 4px;font-family:var(--display);line-height:.9;text-shadow:0 2px 3px rgba(0,0,0,.55)}

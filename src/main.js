@@ -14,7 +14,8 @@ import { CARS } from './cars/roster.js';
 import { damageCar } from './combat/damage.js';
 import { $ } from './engine/util.js';
 import { applyQuality, startLoop, tick } from './game/loop.js';
-import { chosen, pauseGame, resumeGame, startMatch, step } from './game/match.js';
+import { fitHud } from './game/hud.js';
+import { chosen, endMatch, pauseGame, resumeGame, startMatch, step } from './game/match.js';
 import { buildGarage, goGarage, goTitle, selectCar, show } from './game/screens.js';
 import { G } from './game/state.js';
 import { LAST, setupTouch } from './input/input.js';
@@ -88,7 +89,7 @@ function testPark(d) {
   put(p, 0, 118, Math.PI); put(o, 0, 118 - d, 0);
   rest.forEach((c, i) => put(c, Math.sin(2 + i * 1.3) * 150, Math.cos(2 + i * 1.3) * 150, 0));
 }
-window.SH = { net: { get session() { return session; }, encodeSnap, decodeSnap, saveState, loadState }, AI, pickups: PICKUPS, plates: PLATES, hazards: { ROCKS, triggerHazard, get truck() { return hazardTruck(); } }, getMap, allMaps, allModes, testPark, combat: { PROJ, MINES, SMOKES, giveAmmo }, G, CARS, step, tick, startMatch, goGarage, selectCar, damageCar, buildCarModel, disposeCarModel, applyTod, applyQuality, camera, renderer, scene };
+window.SH = { net: { get session() { return session; }, encodeSnap, decodeSnap, saveState, loadState }, AI, pickups: PICKUPS, plates: PLATES, hazards: { ROCKS, triggerHazard, get truck() { return hazardTruck(); } }, getMap, allMaps, allModes, testPark, combat: { PROJ, MINES, SMOKES, giveAmmo }, G, CARS, step, tick, startMatch, endMatch, pauseGame, fitHud, goGarage, selectCar, damageCar, buildCarModel, disposeCarModel, applyTod, applyQuality, camera, renderer, scene };
 
 (function start() {
   let done = false; const go = () => { if (done) return; done = true; try { boot(); } catch (e) { console.error(e); $('#loading').lastChild.textContent = 'Something went wrong starting the game: ' + e.message; } };

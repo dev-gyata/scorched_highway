@@ -62,13 +62,25 @@ addEventListener('blur', () => { for (const k in KEYS) KEYS[k] = false; });
 
 // touch controls
 const TOUCH = { active: false, jx: 0, jy: 0, w: false, drift: false };
+/** Let go of everything a finger was holding (set by setupTouch). */
+let letGo = () => { };
+/**
+ * Let go of the stick and the held buttons. A finger's "lifted" event can go missing (the HUD is hidden under it
+ * when a match ends or the menu opens, the page loses focus, the system takes the touch for a gesture of its own),
+ * and a stick still waiting for it would steer nowhere, and refuse every touch after, until the page was reloaded.
+ */
+export function releaseTouch() { letGo(); }
 export function setupTouch() {
   if (isTouch) document.body.classList.add('touch');
   const zone = $('#stickZone'), base = $('#stickBase'), knob = $('#stickKnob');
   let sid = null, ox = 0, oy = 0; const R = 56;
   const baseHome = () => { base.style.left = ''; base.style.bottom = ''; base.style.top = ''; };
+  /** Hold a pointer's later events to `el` (not fatal if the browser won't: the window-wide listeners below still see them lift). */
+  const capture = (el, id) => { try { el.setPointerCapture(id); } catch { /* not an active pointer */ } };
+  const stickHome = () => { sid = null; TOUCH.jx = 0; TOUCH.jy = 0; knob.style.transform = ''; baseHome(); };
   zone.addEventListener('pointerdown', e => {
-    if (sid !== null) return; sid = e.pointerId; zone.setPointerCapture(sid);
+    // a new touch always takes the stick: if another finger had it, that one is a second thumb or never reported lifting
+    sid = e.pointerId; capture(zone, sid);
     const zr = zone.getBoundingClientRect();
     ox = e.clientX; oy = e.clientY;
     base.style.left = (ox - zr.left - 64) + 'px'; base.style.top = (oy - zr.top - 64) + 'px'; base.style.bottom = 'auto';
@@ -82,15 +94,16 @@ export function setupTouch() {
     knob.style.transform = `translate(${dx}px,${dy}px)`;
     TOUCH.jx = dx / R; TOUCH.jy = dy / R;
   });
-  const end = e => { if (e.pointerId !== sid) return; sid = null; TOUCH.jx = 0; TOUCH.jy = 0; knob.style.transform = ''; baseHome(); };
-  zone.addEventListener('pointerup', end); zone.addEventListener('pointercancel', end);
+  const end = e => { if (e.pointerId === sid) stickHome(); };
+  // wherever the finger lifts, and if the browser takes the touch away
+  addEventListener('pointerup', end); addEventListener('pointercancel', end);
+  zone.addEventListener('lostpointercapture', end);
 
-  const hold = (el, key) => {
-    el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); TOUCH[key] = true; el.classList.add('on'); e.preventDefault(); ensureAudio(); });
-    const up = () => { TOUCH[key] = false; el.classList.remove('on'); };
-    el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
-  };
-  hold($('#bDrift'), 'drift');
+  let driftId = null;
+  const drift = $('#bDrift'), driftUp = () => { driftId = null; TOUCH.drift = false; drift.classList.remove('on'); };
+  drift.addEventListener('pointerdown', e => { driftId = e.pointerId; capture(drift, driftId); TOUCH.drift = true; drift.classList.add('on'); e.preventDefault(); ensureAudio(); });
+  const driftEnd = e => { if (e.pointerId === driftId) driftUp(); };
+  addEventListener('pointerup', driftEnd); addEventListener('pointercancel', driftEnd); drift.addEventListener('lostpointercapture', driftEnd);
   const tap = (el, fn) => el.addEventListener('pointerdown', e => { e.preventDefault(); el.classList.add('on'); fn(); setTimeout(() => el.classList.remove('on'), 120); });
   tap($('#bSpec'), () => { INP.sPress = true; });
   $('.wpn').addEventListener('pointerdown', e => { e.preventDefault(); INP.cycle = 1; }); // tap the weapon panel to switch
@@ -104,7 +117,7 @@ export function setupTouch() {
   // fire: tap = fire, hold = hold (torch), swipe up/down = combo
   const fb = $('#bFire'); let fid = null, fy0 = 0, fstate = '', ftimer = 0;
   fb.addEventListener('pointerdown', e => {
-    e.preventDefault(); fb.setPointerCapture(e.pointerId); fid = e.pointerId; fy0 = e.clientY; fstate = 'pending'; fb.classList.add('on'); ensureAudio();
+    e.preventDefault(); capture(fb, e.pointerId); fid = e.pointerId; fy0 = e.clientY; fstate = 'pending'; fb.classList.add('on'); ensureAudio();
     clearTimeout(ftimer); ftimer = setTimeout(() => { if (fstate === 'pending') { fstate = 'held'; INP.wPress = true; INP.combo = 0; TOUCH.w = true; } }, 150);
   });
   fb.addEventListener('pointermove', e => {
@@ -112,9 +125,19 @@ export function setupTouch() {
     const dy = e.clientY - fy0;
     if (Math.abs(dy) > 26) { fstate = 'swiped'; INP.wPress = true; INP.combo = dy < 0 ? 1 : 2; }
   });
-  const fend = e => { if (e.pointerId !== fid) return; if (fstate === 'pending') { INP.wPress = true; INP.combo = 0; } fstate = ''; fid = null; TOUCH.w = false; fb.classList.remove('on'); clearTimeout(ftimer); };
-  fb.addEventListener('pointerup', fend); fb.addEventListener('pointercancel', fend);
+  /** The fire finger is gone; `shoot`: it lifted after a quick tap, which fires. */
+  const fireUp = shoot => { if (shoot && fstate === 'pending') { INP.wPress = true; INP.combo = 0; } fstate = ''; fid = null; TOUCH.w = false; fb.classList.remove('on'); clearTimeout(ftimer); };
+  const fireGone = e => { if (e.pointerId === fid) fireUp(false); };
+  addEventListener('pointerup', e => { if (e.pointerId === fid) fireUp(true); }); addEventListener('pointercancel', fireGone); fb.addEventListener('lostpointercapture', fireGone);
+  letGo = () => { stickHome(); driftUp(); fireUp(false); };
+
+  // Nothing may zoom the page: zoomed in, the controls at the screen's edges are out of reach. (The page already asks
+  // not to be scaled, but Safari on iPhones doesn't listen.) No double-tap zoom, no pinch, in Safari's events or anyone's.
+  for (const type of ['gesturestart', 'gesturechange', 'dblclick']) document.addEventListener(type, e => e.preventDefault(), { passive: false });
+  document.addEventListener('touchmove', e => { if (e.touches.length > 1 && G.state === 'playing') e.preventDefault(); }, { passive: false });
 }
+addEventListener('blur', releaseTouch);
+document.addEventListener('visibilitychange', () => { if (document.hidden) releaseTouch(); });
 
 // gamepad (standard mapping)
 const PAD = { prev: [], active: false, steer: 0, thr: 0, mg: false, w: false, hb: false, sx: 0, sy: 0 };
