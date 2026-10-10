@@ -110,6 +110,7 @@ test('online: host and guest share a deathmatch: driving, the feed, results for 
   const z0 = await guest.evaluate(() => window.SH.G.player.z);
   await guest.keyboard.down('KeyW');
   await guest.waitForFunction(z => Math.abs(window.SH.G.player.z - z) > 15, z0, { timeout: 90_000 });
+  await host.waitForFunction(z => Math.abs(window.SH.G.cars[1].z - z) > 15, z0, { timeout: 90_000 }); // (a slow host is behind the guest's own copy: hold the key until it has driven there too)
   await guest.keyboard.up('KeyW');
   await host.waitForFunction(() => window.SH.G.cars[1].speed < 1, null, { timeout: 90_000 }); // coasted to a stop
   await guest.waitForTimeout(1000);
