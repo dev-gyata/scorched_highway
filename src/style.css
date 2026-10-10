@@ -200,7 +200,23 @@ kbd{font-family:var(--ui);font-weight:700;background:rgba(246,234,212,.12);borde
 #feed div.me{background:rgba(242,177,52,.9);color:var(--ink)}
 @keyframes feedIn{from{transform:translateY(-6px);opacity:0}}
 .hud-tr{position:absolute;right:max(14px,env(safe-area-inset-right));top:calc(12px + env(safe-area-inset-top));display:flex;gap:10px;align-items:flex-start}
-#radar{width:132px;height:132px;border-radius:50%}
+#radar{width:132px;height:132px;border-radius:50%;pointer-events:auto;cursor:pointer;touch-action:manipulation}
+.rcol{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+/* where you stand: the big place, and everyone in order under the radar */
+#place{display:flex;align-items:baseline;margin:0 0 4px;font-family:var(--display);line-height:.9;text-shadow:0 2px 3px rgba(0,0,0,.55)}
+#place b{font-weight:400;font-size:58px;color:var(--sun)}
+#place sup{font-size:22px;align-self:flex-start;margin:6px 0 0 2px;color:var(--sun)}
+#place span{font-size:22px;color:var(--muted);margin-left:6px}
+#place.up{animation:placeUp .6s ease-out}
+@keyframes placeUp{0%{transform:scale(1.35);filter:brightness(1.6)}100%{transform:none;filter:none}}
+#standings{list-style:none;margin:0;padding:5px 6px;width:190px;background:rgba(30,17,42,.55);border-radius:10px;font-size:13px;font-weight:700;line-height:1.5}
+#standings li{display:flex;align-items:center;gap:5px;padding:0 4px;border-radius:5px;white-space:nowrap}
+#standings li.me{background:rgba(242,177,52,.9);color:var(--ink)}
+#standings li.out{opacity:.45}
+#standings b{width:1.1em;text-align:right;font-variant-numeric:tabular-nums}
+#standings i{width:8px;height:8px;border-radius:50%;flex:none}
+#standings span{flex:1;overflow:hidden;text-overflow:ellipsis}
+#standings em{font-style:normal;font-weight:600;opacity:.8;font-variant-numeric:tabular-nums}
 #pauseBtn{pointer-events:auto;width:40px;height:40px;border-radius:50%;background:rgba(30,17,42,.65);font-size:13px;letter-spacing:-1px}
 #big{position:absolute;left:0;right:0;top:34%;text-align:center;font-family:var(--display);font-size:clamp(40px,8vw,88px);color:var(--sun);
   text-shadow:3px 3px 0 var(--brick),6px 6px 0 var(--plum);opacity:0;transition:opacity .2s,transform .2s;transform:scale(.9)}
@@ -254,6 +270,10 @@ kbd{font-family:var(--ui);font-weight:700;background:rgba(246,234,212,.12);borde
   .hud-tl{width:180px}
   #hName{font-size:17px}
   #radar{width:96px;height:96px}
+  #place b{font-size:40px}
+  #place sup,#place span{font-size:16px}
+  #standings{width:156px;font-size:11.5px;padding:3px 4px}
+  #standings li:nth-child(n+4):not(.me){display:none} /* small screens: the top three, and you */
 }
 @media (max-height:520px){
   .blurb{display:none}

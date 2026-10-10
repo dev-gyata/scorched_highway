@@ -12,7 +12,7 @@ export const G = {
   shake: 0, endT: -1, result: null, delayed: [], showcase: null, showIn: null, playerDef: null,
   /** @type {import('../modes/types').GameMode} the current match's rules */ mode: null, /** @type {import('../maps/types').GameMap} where it's played */ map: null, menuT: 0,
   settings: Object.assign({ opponents: 4, difficulty: isTouch ? 0 : 1, // first-time players on a phone start on Easy
-    tod: 'sunset', quality: isTouch ? 'low' : 'high', sound: 'on', car: 'sundowner', view: 'normal', cam: 'normal', autofire: 'on', autodrift: 'on', rubber: 'on', mode: 'deathmatch', map: 'ghost-town', name: '', bots: 'fill', field: 6 }, migrate(loadStore('settings', {}))),
+    tod: 'sunset', quality: isTouch ? 'low' : 'high', sound: 'on', car: 'sundowner', view: 'normal', cam: 'normal', autofire: 'on', autodrift: 'on', rubber: 'on', mode: 'deathmatch', map: 'ghost-town', name: '', bots: 'fill', field: 6, radar: 'near' }, migrate(loadStore('settings', {}))),
 };
 /** Settings saved before maps and modes were separate had mode 'arena' or 'route67'. */
 function migrate(s) {

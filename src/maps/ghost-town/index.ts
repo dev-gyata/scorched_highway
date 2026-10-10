@@ -33,6 +33,7 @@ export const ghostTown: GameMap = {
   height: baseHeight, ramp: rampHeight, drawn: surfaceHeight, roadLift, speed: () => 1,
   collide, blocked, solid,
   outOfBounds: (x, z) => Math.hypot(x, z) > 215,
+  overview: { x: 0, z: 0, r: ARENA_R + 12 },
   spawns(n) {
     return SPAWNS.slice(0, Math.max(6, n)).sort(() => Math.random() - 0.5).slice(0, n).map(([x, z]): Spot => ({ x, z, yaw: Math.atan2(-x, -z) }));
   },

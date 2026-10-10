@@ -6,7 +6,7 @@ import { currentScreen, menuBack, menuMove, menuSelect } from './menu';
 import { $, clamp, isTouch } from '../engine/util.js';
 import { pauseGame, resumeGame } from '../game/match.js';
 import { TAGS } from '../game/hud.js';
-import { G } from '../game/state.js';
+import { G, saveSettings } from '../game/state.js';
 import { blockedAt } from '../world/collision.js';
 import { puff } from '../world/props.js';
 import { ground } from '../world/terrain.js';
@@ -51,7 +51,10 @@ function press(a, dir = 1) {
   else if (a === 'swap') INP.cycle = dir;
   else if (a === 'target') INP.target = true;
   else if (a === 'flip') INP.reset = true;
+  else if (a === 'map') toggleMapView();
 }
+/** Switch the radar between what's nearby and the whole map (game/hud.js draws it). */
+export function toggleMapView() { G.settings.radar = G.settings.radar === 'map' ? 'near' : 'map'; saveSettings(); }
 const held = a => BINDINGS[a].keys.some(k => KEYS[k]);
 addEventListener('keyup', e => { KEYS[e.code] = false; });
 addEventListener('keydown', () => ensureAudio(), { once: true });
@@ -116,7 +119,7 @@ export function setupTouch() {
 // gamepad (standard mapping)
 const PAD = { prev: [], active: false, steer: 0, thr: 0, mg: false, w: false, hb: false, sx: 0, sy: 0 };
 /** @type {Array<[number, import('./bindings').Action, number?]>} button index, action, direction */
-const PAD_PRESS = [[0, 'fire'], [5, 'attack'], [4, 'defend'], [3, 'special'], [14, 'swap', -1], [15, 'swap', 1], [11, 'target'], [8, 'flip']];
+const PAD_PRESS = [[0, 'fire'], [5, 'attack'], [4, 'defend'], [3, 'special'], [14, 'swap', -1], [15, 'swap', 1], [11, 'target'], [8, 'flip'], [12, 'map']];
 export function pollGamepad() {
   const pads = navigator.getGamepads ? navigator.getGamepads() : [];
   let gp = null; for (const p of pads) if (p && p.connected) { gp = p; break; }

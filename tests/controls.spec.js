@@ -80,7 +80,7 @@ test('help screen lists every control, for each device', async ({ page }) => {
   await page.click('#toHelp');
   for (const d of ['Keyboard', 'Gamepad', 'Touch']) {
     await page.click(`#controlsDevice >> text=${d}`);
-    expect(await page.locator('#controlsTable tr').count(), d).toBe(11);
+    expect(await page.locator('#controlsTable tr').count(), d).toBe(12);
   }
 });
 

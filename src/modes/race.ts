@@ -244,7 +244,15 @@ export const race: GameMode = {
   },
   status(player) {
     const p = player as Car & { race: RaceState };
-    return [`${ordinal(standings(cars()).indexOf(p) + 1)} of ${G.cars.length} · Lap ${lapOf(p)}/${course.laps}`, raceTime(Math.max(0, p.race.finished || G.clock)).slice(0, -1)];
+    return [`Lap ${lapOf(p)}/${course.laps}`, raceTime(Math.max(0, p.race.finished || G.clock)).slice(0, -1)];
+  },
+  standings: () => standings(cars()),
+  /** The leader's lap, everyone else's distance behind the car ahead of them; a finisher's time. */
+  score(c) {
+    const p = c as Car & { race: RaceState }, order = standings(cars()), i = order.indexOf(p);
+    if (p.race.finished) return raceTime(p.race.finished);
+    if (i <= 0 || order[i - 1].race.finished) return `Lap ${lapOf(p)}/${course.laps}`;
+    return `+${Math.max(0, Math.round(course.distance(order[i - 1].race.progress) - course.distance(p.race.progress)))} m`;
   },
   results(viewer) {
     const p = viewer as Car & { race: RaceState }, order = standings(cars()), place = order.indexOf(p) + 1, first = order[0];

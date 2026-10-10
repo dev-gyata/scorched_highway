@@ -5,7 +5,7 @@ import { PICK, PICKUPS } from '../../world/pickups';
 import { PLATE, PLATES } from '../../world/plates';
 import { buildRoute67, isBuilt } from './scenery';
 import {
-  HAZARD_SITES, LAP_LEN, LAPS, OBSTACLES, PLATE_SPOTS, PATHS, SECTIONS_BUILT, SINKHOLES, distance, fallen, gridSlots, heading, inTunnel, keepOnTrack, offTrack, respawnPoint,
+  BOUNDS, HAZARD_SITES, LAP_LEN, LAPS, OBSTACLES, PLATE_SPOTS, PATHS, SECTIONS_BUILT, SINKHOLES, distance, fallen, gridSlots, heading, inTunnel, keepOnTrack, offTrack, respawnPoint,
   surfaceSpeed, track, trackRamp, trackRoadLift, trackSolid, trackSurface,
 } from './track';
 
@@ -21,6 +21,7 @@ export const route67: GameMap = {
   collide: keepOnTrack, blocked: offTrack, solid: trackSolid,
   outOfBounds: (x, z) => offTrack(x, z, -40),
   sees: (ax, az, bx, bz) => inTunnel(ax, az) === inTunnel(bx, bz), // nothing homes into or out of the mine shaft
+  overview: { x: (BOUNDS.minX + BOUNDS.maxX) / 2, z: (BOUNDS.minZ + BOUNDS.maxZ) / 2, r: Math.max(BOUNDS.maxX - BOUNDS.minX, BOUNDS.maxZ - BOUNDS.minZ) / 2 },
   course, obstacles: { rocks: OBSTACLES, holes: SINKHOLES }, plates: PLATE_SPOTS, hazards: HAZARD_SITES,
   drawRadar(x, toR) {
     x.strokeStyle = 'rgba(246,234,212,0.3)'; x.lineCap = 'round';

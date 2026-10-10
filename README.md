@@ -74,6 +74,7 @@ In the browser console, `window.SH` exposes the game state and a few entry point
 - **AI drivers** with personalities (rammers, snipers, opportunists) that hunt, retreat to repair, grab pickups and fight each other, or race the course and pick their branch at each fork.
 - **Destructible arena:** exploding barrels and gas pumps, cacti, billboards and a water tower you can drop on someone.
 - **Arcade driving:** drifts, ramps and dunes for big air, cars that smoke, burn and lose wheels when wrecked.
+- **Where you stand:** your place is always on screen in big numbers (by race position, or by wrecks in a deathmatch), with a list of every driver in order under the radar. Press M (D-pad up, or tap the radar) to switch the radar between what's nearby and the whole map.
 - **Online play:** up to ten drivers with an invite link or a room code, bots optional, on desktops and phones. If the host leaves mid-match, the next player takes over and the match goes on.
 - **Options:** 2–5 opponents, three difficulties, noon / sunset / night (with headlights), view width and camera distance, auto-fire and auto-drift, fast or pretty graphics, sound on/off. Phones and tablets play in landscape.
 
@@ -135,13 +136,13 @@ All maps live in one scene, each in its own 6 km band of world x (`x0` to `x1`),
 ### Adding a map
 
 1. Make `src/maps/<id>/index.ts` exporting a `GameMap` (`src/maps/types.ts`). Give it the next free band (`x0: 9000, x1: 15000`, and so on) and put everything inside it: an origin at the band's middle keeps coordinates small.
-2. Provide the ground (`height`, `ramp`, `drawn`, `roadLift`, `speed`), collision (`collide`, `blocked`, `solid`, `outOfBounds`, optionally `sees`), a `build` that adds its meshes, and `drawRadar`. Reuse `desertMaterial`, `addMesas`, `addBoulders`, `ribbon` and the scatter and props engines from `src/world/`.
+2. Provide the ground (`height`, `ramp`, `drawn`, `roadLift`, `speed`), collision (`collide`, `blocked`, `solid`, `outOfBounds`, optionally `sees`), a `build` that adds its meshes, `drawRadar`, and an `overview` (the middle and reach of the playable area: the radar's whole-map view draws the same `drawRadar` at that scale). Reuse `desertMaterial`, `addMesas`, `addBoulders`, `ribbon` and the scatter and props engines from `src/world/`.
 3. List its `modes`, and provide what they need: `spawns` for deathmatch, a `course` for races (see `route67/track.ts`). A race map can also lay `plates` (tag each with its `PlateTag` so bots can steer onto it) and offer `hazards` (rockfall and truck sites) for skull plates to set off.
 4. Register it in `src/maps/index.ts`. `tests/maps.spec.js` then plays it in each of its modes; check the frame cost with `npm run perf -- --map <id> --mode <mode>`.
 
 ### Adding a mode
 
-1. Make `src/modes/<id>.ts` exporting a `GameMode` (`src/modes/types.ts`): `setup` places the cars and gives loadouts, `step` runs the rules, `wrecked` says what a wreck means, `status` fills the HUD's top line, `results` fills the results screen, and `drive` (optional) steers the bots.
+1. Make `src/modes/<id>.ts` exporting a `GameMode` (`src/modes/types.ts`): `setup` places the cars and gives loadouts, `step` runs the rules, `wrecked` says what a wreck means, `status` fills the HUD's top line, `standings` and `score` fill the place readout and the standings list, `results` fills the results screen, and `drive` (optional) steers the bots.
 2. Register it in `src/modes/index.ts` and add its id to the `modes` of each map that can host it. It appears in the garage automatically.
 
 ### Online play

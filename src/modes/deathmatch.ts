@@ -6,6 +6,12 @@ import type { Car, GameMode } from './types';
 
 const clock = () => { const s = G.clock | 0; return (s / 60 | 0) + ':' + String(s % 60).padStart(2, '0'); };
 
+/** Cars still running first, by wrecks and then damage dealt; then the wrecks, the last to go first. */
+function standings(): Car[] {
+  const cars = G.cars as Car[];
+  return [...cars.filter(c => c.alive).sort((a, b) => b.kills - a.kills || b.dealt - a.dealt || a.pid - b.pid), ...cars.filter(c => !c.alive).sort((a, b) => a.place - b.place)];
+}
+
 export const deathmatch: GameMode = {
   id: 'deathmatch', name: 'Deathmatch', startLabel: 'Enter the Arena', againLabel: 'Fight again', lights: false,
   unarmedHint: 'Grab a crate for heavy weapons',
@@ -23,10 +29,10 @@ export const deathmatch: GameMode = {
     else if (alive.length === 1) { G.slowT = 1.2; G.endT = 3; later(0.4, () => announce(ALL, 'Last one standing!', 2.5)); }
   },
   status: () => [(G.cars as Car[]).filter(c => c.alive).length + ' cars left', clock()],
+  standings,
+  score: c => (c.alive ? `${c.kills} ${c.kills === 1 ? 'wreck' : 'wrecks'}` : 'out'),
   results(p) {
-    const cars = G.cars as Car[], win = p.alive, by = p.wreckedBy;
-    // cars still running (healthiest first), then the wrecks, most recent first
-    const order = [...cars.filter(c => c.alive).sort((a, b) => b.hp / b.def.hp - a.hp / a.def.hp), ...cars.filter(c => !c.alive).sort((a, b) => a.place - b.place)];
+    const win = p.alive, by = p.wreckedBy, order = standings();
     return {
       order, win,
       title: win ? 'Last one standing' : 'Wrecked',

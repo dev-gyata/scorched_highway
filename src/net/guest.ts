@@ -62,7 +62,7 @@ export function guestRole(): Role {
       if (m instanceof ArrayBuffer) { if (kindOf(m) === SNAP && from === S.host) take(decodeSnap(m)); return; }
       if (FROM_HOST.has(m.t) && from !== S.host) return; // only the host says how the room and the match are
       switch (m.t) {
-        case 'lobby': S.players = m.players; S.opts = m.opts; S.code = m.code; S.host = m.host; meshUp(); S.onlobby(); break;
+        case 'lobby': S.players = m.players; S.line = S.line.filter(id => m.players.some(p => p.id === id)); S.opts = m.opts; S.code = m.code; S.host = m.host; meshUp(); S.onlobby(); break;
         case 'start': reset(); beginMatch(m.seats, m.opts, true); if (G.watching) emit({ kind: 'feed', to: ALL, text: 'Match in progress: you’re in for the next one' }); break;
         case 'ev': for (const e of m.e) { try { if (e.kind === 'fx') playEffect(e.name, e.args); else emit(e); } catch { /* one bad event mustn't stop the rest */ } } break;
         case 'over': finishMatch(m.r); break;

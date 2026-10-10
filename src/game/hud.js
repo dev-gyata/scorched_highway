@@ -2,7 +2,7 @@ import { playSfx } from '../audio/audio.js';
 import { COMBOS, CONE, RANGE } from '../combat/arsenal';
 import { findTarget } from '../combat/weapons.js';
 import { hint } from '../input/bindings';
-import { LAST } from '../input/input.js';
+import { LAST, toggleMapView } from '../input/input.js';
 import { camera } from '../engine/renderer.js';
 import { ALL, onEvent } from '../engine/events';
 import { $, TAU, _v1 } from '../engine/util.js';
@@ -15,7 +15,9 @@ export const hud = {
   big: $('#big'), feed: $('#feed'), vign: $('#vign'), hpFill: $('#hpFill'), hpBar: $('#hpBar'), hHp: $('#hHp'), hName: $('#hName'),
   wName: $('#wName'), wAmmo: $('#wAmmo'), wIcon: $('#wIcon'), sPips: $('#sPips'), combo: $('#comboHint'), alive: $('#alive'), clock: $('#clock'),
   spd: $('#spd'), radar: $('#radar'), lights: $('#lights'), lock: $('#lock'), tags: $('#tags'), reset: $('#bReset'), cache: {},
+  place: $('#place'), placeN: $('#placeN'), placeTh: $('#placeTh'), placeOf: $('#placeOf'), standings: $('#standings'),
 };
+hud.radar.addEventListener('click', toggleMapView); // tap the radar: nearby, or the whole map
 let bigTimer = 0;
 export function bigText(txt, dur, small) {
   hud.big.textContent = txt; hud.big.classList.toggle('small', !!small); hud.big.classList.add('show');
@@ -78,18 +80,47 @@ export function updateHUD(dt) {
   if (p.alive && ((Math.abs(p.input.throttle) > 0.5 && p.speed < 1.5) || p.airT > 4)) p.stuckT += dt; else p.stuckT = 0;
   const showReset = p.stuckT > 2;
   if (hud.cache.reset !== showReset) { hud.cache.reset = showReset; hud.reset.hidden = !showReset; }
+  if ((standT -= dt) <= 0) { standT = 0.25; updateStandings(p); }
   drawRadar();
   updateTags();
 }
+// ================= where you stand =================
+const TH = n => (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
+let standT = 0;
+/** The big place readout and the list of everyone in order (the mode says who's where: GameMode.standings). */
+function updateStandings(p) {
+  const order = G.mode.standings(), me = G.watching ? null : p, place = order.indexOf(me) + 1;
+  if (hud.cache.place !== place) {
+    if (place && place < hud.cache.place) { hud.place.classList.remove('up'); void hud.place.offsetWidth; hud.place.classList.add('up'); } // moved up: a flash
+    hud.cache.place = place; hud.place.hidden = !place;
+    hud.placeN.textContent = place; hud.placeTh.textContent = TH(place); hud.placeOf.textContent = '/' + order.length;
+  }
+  const scores = order.map(c => G.mode.score(c)), key = order.map((c, i) => c.pid + scores[i] + (c.alive ? '' : 'x')).join('|');
+  if (hud.cache.standings === key) return;
+  hud.cache.standings = key;
+  const list = hud.standings;
+  while (list.children.length > order.length) list.removeChild(list.lastChild);
+  order.forEach((c, i) => {
+    let li = list.children[i];
+    if (!li) { li = document.createElement('li'); li.innerHTML = '<b></b><i></i><span></span><em></em>'; list.appendChild(li); }
+    const [n, dot, name, sc] = li.children, cls = (c === me ? 'me' : '') + (c.alive ? '' : ' out');
+    if (li.className !== cls) li.className = cls;
+    n.textContent = i + 1; dot.style.background = c.def.tag; name.textContent = c === me ? 'You' : c.name; sc.textContent = scores[i]; // names can come from other players: never HTML
+  });
+}
 function drawRadar() {
-  const cv = hud.radar, x = cv.getContext('2d'), S = cv.width, R = S / 2, p = G.player, range = 130;
+  const cv = hud.radar, x = cv.getContext('2d'), S = cv.width, R = S / 2, p = G.player;
+  // what's nearby, turning with the car; or the whole map, north up (the `map` action switches)
+  const whole = G.settings.radar === 'map', o = G.map.overview, range = whole ? o.r : 130, k = (R - 8) / range;
   x.clearRect(0, 0, S, S);
   x.fillStyle = 'rgba(30,17,42,0.7)'; x.beginPath(); x.arc(R, R, R - 3, 0, TAU); x.fill();
   x.strokeStyle = 'rgba(246,234,212,0.35)'; x.lineWidth = 3; x.stroke();
-  x.strokeStyle = 'rgba(246,234,212,0.12)'; x.lineWidth = 2; x.beginPath(); x.arc(R, R, R * 0.5, 0, TAU); x.stroke();
+  if (!whole) { x.strokeStyle = 'rgba(246,234,212,0.12)'; x.lineWidth = 2; x.beginPath(); x.arc(R, R, R * 0.5, 0, TAU); x.stroke(); }
   const cy = Math.cos(p.yaw), sy = Math.sin(p.yaw);
   /** @type {(wx: number, wz: number) => [number, number, boolean]} */
-  const toR = (wx, wz) => { const dx = wx - p.x, dz = wz - p.z; const lx = dx * cy - dz * sy, lz = dx * sy + dz * cy; return [R - lx / range * (R - 8), R - lz / range * (R - 8), Math.hypot(lx, lz) < range]; };
+  const toR = whole
+    ? (wx, wz) => { const lx = wx - o.x, lz = wz - o.z; return [R - lx * k, R - lz * k, Math.hypot(lx, lz) < range]; }
+    : (wx, wz) => { const dx = wx - p.x, dz = wz - p.z; const lx = dx * cy - dz * sy, lz = dx * sy + dz * cy; return [R - lx * k, R - lz * k, Math.hypot(lx, lz) < range]; };
   // the map's own features, then the cars
   x.save(); x.beginPath(); x.arc(R, R, R - 4, 0, TAU); x.clip();
   G.map.drawRadar(x, toR, R, range);
@@ -100,7 +131,11 @@ function drawRadar() {
     x.beginPath(); x.arc(px, py, c.alive ? 6.5 : 4, 0, TAU); x.fill();
   }
   x.restore();
-  x.fillStyle = '#f6ead4'; x.beginPath(); x.moveTo(R, R - 10); x.lineTo(R + 7, R + 7); x.lineTo(R, R + 3); x.lineTo(R - 7, R + 7); x.closePath(); x.fill();
+  // this screen's car: an arrow, at the middle pointing up, or where it is on the map pointing where it's going
+  const [ax, ay] = whole ? toR(p.x, p.z) : [R, R];
+  x.save(); x.translate(ax, ay); if (whole) { x.rotate(-p.yaw); x.strokeStyle = 'rgba(30,17,42,0.9)'; x.lineWidth = 3; }
+  x.fillStyle = '#f6ead4'; x.beginPath(); x.moveTo(0, -10); x.lineTo(7, 7); x.lineTo(0, 3); x.lineTo(-7, 7); x.closePath(); if (whole) x.stroke(); x.fill();
+  x.restore();
 }
 export const TAGS = [];
 export function buildTags() {

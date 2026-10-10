@@ -59,6 +59,9 @@ export interface GameMap {
   /** Hazards waiting to be set off (see world/hazards); may fill in when the map is built. */
   hazards?: HazardSite[];
 
+  /** The whole playable area, for the radar's whole-map view: its middle and how far out it reaches (m). */
+  overview: { x: number; z: number; r: number };
+
   /** Draw the map's static features on the radar; `toR` turns world x, z into radar x, y and whether it's in range. */
   drawRadar(ctx: CanvasRenderingContext2D, toR: (x: number, z: number) => [number, number, boolean], R: number, range: number): void;
 }

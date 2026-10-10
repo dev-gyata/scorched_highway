@@ -29,7 +29,7 @@ export function hostRole(): Role {
       if (!S) return;
       if (m instanceof ArrayBuffer) { if (kindOf(m) === INPUT) steer(from, decodeInput(m)); return; }
       if (m.t === 'hello') {
-        if (S.players.some(p => p.id === from)) return;
+        if (S.players.some(p => p.id === from) || S.seats?.some(s => s.id === from)) return; // (nor an address that had a seat in this match)
         if (m.v !== PROTOCOL) { send(from, { t: 'busy', why: 'That game is on a different version. Reload the page and try again.' }); return; }
         if (S.players.length >= MAX_PLAYERS) { send(from, { t: 'busy', why: 'That game is full.' }); return; }
         const p: Player = { id: from, name: clean(m.name), car: m.car, ready: false, desktop: m.desktop, ping: 0 };
@@ -66,7 +66,7 @@ export function hostRole(): Role {
     closed(id) {
       if (!S) return;
       const i = S.players.findIndex(p => p.id === id); if (i < 0) return;
-      const who = S.players[i]; S.players.splice(i, 1); last.delete(id);
+      const who = S.players[i]; S.players.splice(i, 1); last.delete(id); S.line = S.line.filter(o => o !== id); // gone from the line to take over, too
       if (S.seats && pidOf(id) >= 0) retire(pidOf(id), who.name);
       shareLobby();
     },

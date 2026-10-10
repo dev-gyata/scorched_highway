@@ -54,6 +54,10 @@ export interface GameMode {
   wrecked(c: Car, by: Car | null): void;
   /** HUD top centre: status text and clock. */
   status(player: Car): [string, string];
+  /** Every car in the order they stand right now, first place first: the HUD's place and standings list, and the results. */
+  standings(): Car[];
+  /** What the standings list shows beside a car's name: a lap, a gap, a score. */
+  score(c: Car): string;
   /** The results screen for the match that just ended, as `viewer` (a human's car) sees it. */
   results(viewer: Car): Results;
   /** The mode's own state, as plain JSON (cars by pid), for another player to carry an online match on (engine/savestate). */

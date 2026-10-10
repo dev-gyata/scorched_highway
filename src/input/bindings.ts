@@ -1,7 +1,7 @@
 // Every player action and what triggers it on each device. Input handling, the help screen and the HUD hints
 // all read this table, so they can't drift apart.
 
-export type Action = 'drive' | 'drift' | 'gun' | 'fire' | 'attack' | 'defend' | 'special' | 'swap' | 'target' | 'flip' | 'pause';
+export type Action = 'drive' | 'drift' | 'gun' | 'fire' | 'attack' | 'defend' | 'special' | 'swap' | 'target' | 'flip' | 'map' | 'pause';
 
 interface Binding {
   label: string;
@@ -23,6 +23,7 @@ export const BINDINGS: Record<Action, Binding> = {
   swap: { label: 'Switch weapon', keys: ['KeyQ', 'KeyE'], keyHint: 'Q / E', pad: 'D-pad left / right', touch: 'Tap the weapon panel' },
   target: { label: 'Switch target', keys: ['Tab'], keyHint: 'Tab', pad: 'Right stick click', touch: 'Tap a name tag' },
   flip: { label: 'Flip back over', keys: ['KeyR'], keyHint: 'R', pad: 'Back / View', touch: 'Flip back button' },
+  map: { label: 'Radar: nearby or the whole map', keys: ['KeyM'], keyHint: 'M', pad: 'D-pad up', touch: 'Tap the radar' },
   pause: { label: 'Pause', keys: ['KeyP', 'Escape'], keyHint: 'P or Esc', pad: 'Start / Menu', touch: 'Pause button' },
 };
 

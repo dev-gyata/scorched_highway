@@ -25,8 +25,11 @@ export function saveCheckpoint() { if (S?.seats) broadcast({ t: 'ck', d: JSON.st
 /** Guest: keep the latest checkpoint. */
 export function keepCheckpoint(m: { d: string }) { try { ck = JSON.parse(m.d); } catch { /* a garbled one: keep the last */ } }
 
-/** Who takes over, in order: the people in the match in lobby order, then anyone watching it. */
-const order = () => (S ? [...S.line, ...S.players.map(p => p.id).filter(id => !S!.line.includes(id))] : []);
+/**
+ * Who takes over, in order: the people in the match in lobby order, then anyone watching it. Only people in the room
+ * now: an address someone left behind is free for anyone to take, so it mustn't keep its place in the line.
+ */
+const order = () => (S ? [...S.line.filter(id => S!.players.some(p => p.id === id)), ...S.players.map(p => p.id).filter(id => !S!.line.includes(id))] : []);
 let checked = 0;
 /**
  * Guest, in a match: has the host (or the successor we're waiting on) gone quiet? Only once the match is under way
@@ -46,7 +49,7 @@ export function hostLost() {
   if (!S) return;
   const gone = S.host, name = S.players.find(p => p.id === gone)?.name || 'The host';
   if (!S.seats) { end(`${name} closed the game.`); return; }
-  S.players = S.players.filter(p => p.id !== gone); S.t.drop(gone);
+  S.players = S.players.filter(p => p.id !== gone); S.line = S.line.filter(id => id !== gone); S.t.drop(gone);
   const t = now();
   const here = (id: string) => S!.players.some(p => p.id === id) && (id === S!.me || (S!.t.links().includes(id) && t - (S!.heard.get(id) ?? 0) < SILENT * 2));
   const next = S.players.find(p => p.id === order().find(here));
