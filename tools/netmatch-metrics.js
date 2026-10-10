@@ -31,9 +31,9 @@ export function parseArgs(args) {
       ? Number(value)
       : value;
   }
-  if (!Number.isInteger(opts.guests) || opts.guests < 1 || opts.guests > 5)
+  if (!Number.isInteger(opts.guests) || opts.guests < 1 || opts.guests > 9)
     throw new Error(
-      "--guests must be an integer from 1 to 5 (six players maximum)",
+      "--guests must be an integer from 1 to 9 (ten players maximum)",
     );
   if (!Number.isFinite(opts.lag) || opts.lag < 0)
     throw new Error(

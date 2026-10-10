@@ -16,8 +16,8 @@ test('network percentiles ignore missing samples and handle empty and small sets
 test('network CLI preserves defaults and validates supported values', () => {
   expect(metrics.parseArgs([])).toMatchObject({ guests: 2, mode: 'deathmatch', map: 'ghost-town', lag: 40, seconds: 20 });
   expect(metrics.parseArgs(['--mode', 'race'])).toMatchObject({ map: 'route67' });
-  expect(metrics.parseArgs(['--guests', '5', '--lag', '0', '--seconds', '0.5']).guests).toBe(5);
-  for (const args of [['--guests', '0'], ['--guests', '6'], ['--guests', '1.5'], ['--lag', '-1'], ['--lag', 'NaN'], ['--seconds', '0'], ['--seconds', 'Infinity'], ['--mode', 'unknown'], ['--url', 'file:///tmp/game'], ['--lag'], ['--typo', '1']]) {
+  expect(metrics.parseArgs(['--guests', '9', '--lag', '0', '--seconds', '0.5']).guests).toBe(9);
+  for (const args of [['--guests', '0'], ['--guests', '10'], ['--guests', '1.5'], ['--lag', '-1'], ['--lag', 'NaN'], ['--seconds', '0'], ['--seconds', 'Infinity'], ['--mode', 'unknown'], ['--url', 'file:///tmp/game'], ['--lag'], ['--typo', '1']]) {
     expect(() => metrics.parseArgs(args)).toThrow();
   }
 });
