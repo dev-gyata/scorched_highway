@@ -6,7 +6,7 @@ Runs in any modern browser, desktop or phone. Players need nothing installed; de
 
 ## Play
 
-**[Play it in your browser →](https://thedumbtechguy.github.io/scorched_highway/)**
+**[Play it in your browser →](https://dev-gyata.github.io/scorched_highway/)**
 
 The game is a static site: `npm run build` produces `dist/`, which can be hosted anywhere. Pushes to `main` are built and published to GitHub Pages by CI (one-time setup: *Settings → Pages → Source: GitHub Actions*).
 
@@ -31,6 +31,21 @@ npm run check      # lint + typecheck + build + smoke tests, the same as CI
 | `npm run shots -- cars\|env [--tod noon\|sunset\|night] [names]` | Screenshots into `shots/` with a contact sheet: each car from three angles, or fixed viewpoints around the arena |
 
 The first test run needs a browser: `npx playwright install chromium`.
+
+Measure online play across headless browser tabs with a bot-filled field:
+
+```sh
+npm run net                               # host + 2 guests, 40 ms one-way lag, 20 seconds
+npm run net -- --mode race --map route67   # race instead of deathmatch
+npm run net -- --guests 1 --lag 0          # no simulated transport delay
+npm run net -- --seconds 10 --url 'http://localhost:4173/?foo=bar'
+```
+
+The tool starts and closes its own Vite server unless `--url` is supplied. Guests must be 1–5; `--lag` is nonnegative milliseconds and `--seconds` is a positive duration. Maps must support the chosen mode. Existing URL parameters are preserved, with `net=local` and `lag` set by the tool.
+
+It reports application payload KiB/s per guest (including reliable messages and checkpoints), snapshot counts and achieved rate, median/p95 car position drift with sample counts, five browser-keydown-to-host-control timing trials per guest, and a separate 500-encode snapshot packing benchmark. Drift uses timestamp-aligned host history, skips life-state transitions, and includes the deliberate 0.1-second interpolation delay for other cars. If the match ends early, the actual measurement duration and state are reported; unavailable active-play trials are labeled.
+
+Finally it closes the host tab, checks that the next guest becomes authoritative and advances simulation, and verifies fresh successor snapshots and advancing replicas on every remaining guest. Errors and timeouts fail the command and close its resources. These are BroadcastChannel measurements, not WebRTC bandwidth or network overhead measurements. Headless tab scheduling and software rendering affect the results; compare runs on the same machine, and use the achieved snapshot rate to spot CPU-limited runs.
 
 In the browser console, `window.SH` exposes the game state and a few entry points (`SH.G`, `SH.tick(ms)`, `SH.step(dt, dt)`, `SH.startMatch()`, `SH.buildCarModel(def)` ...). The tests and tools use it too. Everything in the scene is added with `addToScene(obj, layer)` (`landscape`, `town`, `scatter`, `cars`, ...), so a layer can be found or hidden with `SH.scene.traverse(o => o.userData.layer === 'scatter' && (o.visible = false))`.
 

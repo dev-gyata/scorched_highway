@@ -13,7 +13,8 @@
     "shots": "node tools/shots.js",
     "typecheck": "tsc -p .",
     "perf": "node tools/perf.js",
-    "bots": "node tools/botmatch.js"
+    "bots": "node tools/botmatch.js",
+    "net": "node tools/netmatch.js"
   },
   "dependencies": {
     "peerjs": "1.5.5",
