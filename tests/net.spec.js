@@ -168,3 +168,12 @@ test('online: when the host leaves, the next player takes over and the match goe
   await second.waitForFunction(() => window.SH.net.session.role.name === 'host' && !window.SH.G.replica, null, { timeout: 30_000 });
   expect(await second.evaluate(() => window.SH.G.state)).toBe('playing');
 });
+
+test('online: a race starts for everyone, and the guest sees the standings and its lap', async ({ context }) => {
+  test.slow(); // the first race builds the canyon, in two tabs
+  const host = await player(context, 'Hana', { mode: 'race', map: 'route67' }), guest = await player(context, 'Gus');
+  await room(host, guest); await start(host, guest);
+  expect(await guest.evaluate(() => [window.SH.G.mode.id, window.SH.G.map.id])).toEqual(['race', 'route67']); // the host's choice
+  await host.evaluate(() => { const { G } = window.SH; G.ais.length = 0; const c = G.cars[1]; c.race.progress.lap = 2; });
+  await expect(guest.locator('#alive')).toContainText('Lap 2/3', { timeout: 30_000 });
+});

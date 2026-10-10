@@ -8,6 +8,8 @@ Runs in any modern browser, desktop or phone. Players need nothing installed; de
 
 **[Play it in your browser →](https://dev-gyata.github.io/scorched_highway/)**
 
+**Online:** choose *Play online*, enter a name and *Host a game*; friends choose *Play online* and join with the five-letter room code (or a `?join=CODE` link from *Copy code*). Up to six drivers, on desktops and phones; the host picks the mode, map, bot difficulty, time of day and whether bots fill the field. Players are connected browser to browser through PeerJS's free public broker, so there's no game server. Some networks (strict mobile carriers, offices) can't connect two browsers directly; for those, build with a TURN relay: `VITE_TURN_URL`, `VITE_TURN_USER` and `VITE_TURN_PASS`.
+
 The game is a static site: `npm run build` produces `dist/`, which can be hosted anywhere. Pushes to `main` are built and published to GitHub Pages by CI (one-time setup: *Settings → Pages → Source: GitHub Actions*).
 
 ## Develop
@@ -29,6 +31,7 @@ npm run check      # lint + typecheck + build + smoke tests, the same as CI
 | `npm test` | Playwright smoke tests against the build: boot, every car model, garage, a fast-forwarded match |
 | `npm run perf -- [--quality high\|low] [--phone] [--frames 60]` | Benchmark: boot timings (median of warm loads), a scripted 6-car match driven frame by frame, draw calls, triangles and vertex memory per scene layer (shadow pass included), and the hottest functions. `--phone` emulates a phone viewport with touch and a 4x slower CPU. Writes `shots/perf-*.json`. It runs on a software GPU, so compare runs with each other |
 | `npm run shots -- cars\|env [--tod noon\|sunset\|night] [names]` | Screenshots into `shots/` with a contact sheet: each car from three angles, or fixed viewpoints around the arena |
+| `npm run net -- [--guests 2] [--mode race] [--lag 40] [--seconds 20]` | Online check: a host and guests in headless tabs (`?net=local`) playing a bot-filled match. Reports bytes a second to each guest, snapshot size and packing time, how far guests' views drift from the host, how long a press takes to reach the host, and how long the match takes to carry on when the host leaves. The tabs share one software renderer at a few frames a second, so drift and delays come out pessimistic: compare runs with each other |
 
 The first test run needs a browser: `npx playwright install chromium`.
 
@@ -71,6 +74,7 @@ In the browser console, `window.SH` exposes the game state and a few entry point
 - **AI drivers** with personalities (rammers, snipers, opportunists) that hunt, retreat to repair, grab pickups and fight each other, or race the course and pick their branch at each fork.
 - **Destructible arena:** exploding barrels and gas pumps, cacti, billboards and a water tower you can drop on someone.
 - **Arcade driving:** drifts, ramps and dunes for big air, cars that smoke, burn and lose wheels when wrecked.
+- **Online play:** up to six drivers with a room code, bots optional, on desktops and phones. If the host leaves mid-match, the next player takes over and the match goes on.
 - **Options:** 2–5 opponents, three difficulties, noon / sunset / night (with headlights), view width and camera distance, auto-fire and auto-drift, fast or pretty graphics, sound on/off. Phones and tablets play in landscape.
 
 ## Controls
@@ -106,6 +110,7 @@ ES modules bundled by Vite, with Three.js (pinned to r128) from npm. Modules are
 | `src/combat/` | Projectile pools, damage, explosions and effects, weapons, combos and specials |
 | `src/ai/` | Opponent behaviour |
 | `src/input/`, `src/audio/` | Keyboard, touch and gamepad input; synthesized sound |
+| `src/net/` | Online play: the transports (`peer.ts` WebRTC, `local.ts` between tabs), the binary messages (`protocol.ts`), the room (`session.ts`), the host and guest roles, host migration and the online screens. Nothing outside it imports it |
 | `src/game/` | Game state and settings, HUD, camera, menus and results, the match loop (`match.js`, the same for every map and mode), main loop and quality |
 | `src/style.css` | Menus, HUD, touch controls |
 | `tests/`, `tools/` | Playwright tests; screenshot, benchmark (`perf.js`) and bot-match (`botmatch.js`) tools |
@@ -138,6 +143,19 @@ All maps live in one scene, each in its own 6 km band of world x (`x0` to `x1`),
 
 1. Make `src/modes/<id>.ts` exporting a `GameMode` (`src/modes/types.ts`): `setup` places the cars and gives loadouts, `step` runs the rules, `wrecked` says what a wreck means, `status` fills the HUD's top line, `results` fills the results screen, and `drive` (optional) steers the bots.
 2. Register it in `src/modes/index.ts` and add its id to the `modes` of each map that can host it. It appears in the garage automatically.
+
+### Online play
+
+One player's game hosts: it runs the match exactly as single-player does and drives each guest's car with the controls that guest sends. Twenty times a second it sends every guest a snapshot (cars, projectiles, mines, crates, plates) and the events since the last one. Guests draw other cars a tenth of a second behind, between snapshots, and drive their own car locally, eased toward where the host has it. Every player is linked to every other one. If the host leaves mid-match, the next player in lobby order (desktops before phones) loads the last checkpoint (sent once a second) over the match it was mirroring and carries on as host.
+
+Simulation code never talks to the network. When adding to it:
+- A one-off sight or sound that only the host's simulation triggers (an explosion, a burst, a sound at a place) is made with `effect(name, fn)` from `src/engine/events.ts`: it plays where it's called and is replayed on every guest. Its arguments must be plain numbers, strings and flags. Things guests can draw from state (a car's smoke, a projectile's trail) need nothing.
+- A message for one driver (big text, a feed line, a sound) is raised with `announce`, `tell` or `emit` to that car's `pid`, never by calling the HUD.
+- Rules about people use `c.human`; what this screen shows uses `c.isPlayer` (the car the camera follows).
+- New match state that a snapshot doesn't carry registers `save`/`load` with `src/engine/savestate.ts`, so a new host can carry it on.
+- On a guest `G.replica` is set: damage and breaking things are the host's alone.
+
+Develop it without the internet: open the game with `?net=local` in two tabs (add `&lag=80` for 80 ms each way). `tests/net.spec.js` plays that way, and `npm run net` measures it.
 
 ### Adding a car
 
