@@ -109,11 +109,11 @@ export function lobbyOnline() {
   if (!S) return;
   S.seats = null; broadcast({ t: 'lobbyback' }); shareLobby();
 }
-/** A player left mid-match: a bot takes their car if bots fill the field; otherwise the car drops out. */
+/** A player left mid-match: a bot takes their car if bots fill the field; otherwise the car drops out. (`name` empty: no need to say so again.) */
 export function retire(pid: number, name: string) {
   const c = G.cars[pid] as (Car & { ctl: unknown; wreck(): void }) | undefined; if (!c || !S?.seats) return;
   c.human = false; c.ctl = null; S.seats[pid] = { car: S.seats[pid].car, human: false, name: '' };
-  emit({ kind: 'feed', to: ALL, text: `${name} left` });
+  if (name) emit({ kind: 'feed', to: ALL, text: `${name} left` });
   if (S.opts.bots === 'fill') { if (!G.ais.some((a: { car: Car }) => a.car === c)) G.ais.push(new AI(c)); }
   else if (c.alive) { c.wreck(); c.place = G.cars.filter((o: Car) => o.alive).length + 1; G.mode.wrecked(c, null); if (c.race) c.race.respawnT = 0; } // out quietly, for good
 }

@@ -47,7 +47,10 @@ export function localTransport(id: string, lag = 0): Promise<Transport> {
     if (n.k === 'claim') { if (n.id === id && n.nonce !== nonce && claimed) post({ k: 'taken', id, nonce: n.nonce }); return; }
     if (n.k === 'taken') { if (n.id === id && n.nonce === nonce) taken(); return; }
     if (n.to !== id) return;
-    if (n.k === 'open') { linked.add(n.from); post({ k: 'ack', from: id, to: n.from }); t.onopen(n.from); }
+    if (n.k === 'open') {
+      if (linked.has(n.from)) return; // already linked to that address: a second caller using it isn't them
+      linked.add(n.from); post({ k: 'ack', from: id, to: n.from }); t.onopen(n.from);
+    }
     else if (n.k === 'ack') { if (!linked.has(n.from)) { linked.add(n.from); t.onopen(n.from); } waiting.get(n.from)?.(); waiting.delete(n.from); }
     else if (n.k === 'close') { if (linked.delete(n.from)) t.onclose(n.from); }
     else if (n.k === 'data' && linked.has(n.from)) t.onmessage(n.from, n.d);

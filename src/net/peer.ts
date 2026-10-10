@@ -39,7 +39,8 @@ export function peerTransport(id: string): Promise<Transport> {
   };
   /** Wire up one of a pair's two channels; the link is up once both are open. */
   const adopt = (c: DataConnection) => {
-    const l = link(c.peer);
+    const l = link(c.peer), had = c.label === 'u' ? l.u : l.r;
+    if (had && had !== c) { c.close(); return; } // already linked to that address: a second caller using it isn't them
     if (c.label === 'u') l.u = c; else l.r = c;
     c.on('open', () => {
       if (l.up || !l.r?.open || !l.u?.open) return;

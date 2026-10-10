@@ -81,10 +81,10 @@ function takeOver() {
     G.ais = [];
     S.seats.forEach((seat, pid) => {
       const c = G.cars[pid]; if (!c) return;
-      if (!seat.human || !seat.id) { G.ais.push(new AI(c)); return; }
+      if (!seat.human) { G.ais.push(new AI(c)); return; }
       if (seat.id === S!.me) return;
-      if (S!.players.some(p => p.id === seat.id)) { c.human = true; c.ctl = newControls(); } // still here: their controls will come to us now
-      else retire(pid, seat.name); // the old host, or anyone else who went with it
+      if (seat.id && S!.players.some(p => p.id === seat.id)) { c.human = true; c.ctl = newControls(); } // still here: their controls will come to us now
+      else retire(pid, seat.id ? seat.name : ''); // the old host, anyone who went with it, or someone who left earlier (everyone's been told)
     });
   }
   S.role = hostRole();
