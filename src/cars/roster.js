@@ -25,4 +25,13 @@ export const CARS = [
     special: { name: 'Brain freeze', desc: 'An icy homing shot that slows and freezes its target.' },
     hp: 225, max: 34, accel: 17, turn: 1.8, grip: 9.0, mass: 1.65, stats: { Speed: 1, Armor: 5, Handling: 1 }, ai: 'rammer', front: 2.6, gunY: 1.6, gunX: 0.8 },
 ];
+/**
+ * Cars for `n` bots: models nobody in `taken` drives first, in random order, then repeats once every model is out.
+ * @param {string[]} taken @param {number} n @returns {string[]}
+ */
+export function botCars(taken, n) {
+  const shuffled = () => CARS.map(d => d.id).sort(() => Math.random() - 0.5), out = shuffled().filter(id => !taken.includes(id));
+  while (out.length < n) out.push(...shuffled());
+  return out.slice(0, Math.max(0, n));
+}
 export const CAR_BY_ID = Object.fromEntries(CARS.map(c => [c.id, c]));

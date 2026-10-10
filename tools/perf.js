@@ -20,7 +20,7 @@ try {
   const cdp = await page.context().newCDPSession(page);
   if (phone) await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 }); // roughly a mid-range phone's CPU (the GPU can't be emulated)
   page.on('pageerror', e => console.error('page error:', e.message));
-  await page.addInitScript(q => { try { localStorage.setItem('shwy_settings', JSON.stringify({ quality: q[0], opponents: 5, tod: 'sunset', car: 'sundowner', mode: q[1], map: q[2] })); } catch { /* storage blocked */ } }, [quality, mode, map]);
+  await page.addInitScript(q => { try { localStorage.setItem('shwy_settings', JSON.stringify({ quality: q[0], opponents: q[3], tod: 'sunset', car: 'sundowner', mode: q[1], map: q[2] })); } catch { /* storage blocked */ } }, [quality, mode, map, +opt('cars', 6) - 1]);
   await page.route(/fonts\.(googleapis|gstatic)\.com/, r => r.fulfill({ status: 200, contentType: 'text/css', body: '' })); // deterministic, offline
   await page.goto(server.resolvedUrls.local[0]);
   await page.waitForFunction(() => window.SH && window.SH.G.state === 'title', null, { timeout: 120_000 });

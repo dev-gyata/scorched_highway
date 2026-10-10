@@ -2,7 +2,7 @@ import { AI } from '../ai/ai.js';
 import { ensureAudio, playSfx } from '../audio/audio.js';
 import { Car, collideCars } from '../cars/car.js';
 import { disposeCarModel } from '../cars/model/build.js';
-import { CARS, CAR_BY_ID } from '../cars/roster.js';
+import { CARS, CAR_BY_ID, botCars } from '../cars/roster.js';
 import { DIFF } from '../combat/damage.js';
 import { updateRings } from '../combat/effects.js';
 import { clearWeapons } from '../combat/pools.js';
@@ -53,8 +53,7 @@ export function clearMatch() {
 /** A single-player match: you in the car you picked, and bots in the others. @returns {Seat[]} */
 export function soloRoster() {
   const pdef = CAR_BY_ID[G.settings.car] || CARS[0];
-  const others = CARS.filter(d => d !== pdef).sort(() => Math.random() - 0.5).slice(0, G.settings.opponents);
-  return [{ car: pdef.id, human: true, local: true }, ...others.map(d => ({ car: d.id, human: false }))];
+  return [{ car: pdef.id, human: true, local: true }, ...botCars([pdef.id], G.settings.opponents).map(car => ({ car, human: false }))];
 }
 /** Start a match with the chosen mode and map; `roster` says who drives (online play passes its own). @param {Seat[]} [roster] */
 export function startMatch(roster = soloRoster()) {
@@ -66,7 +65,8 @@ export function startMatch(roster = soloRoster()) {
   const diff = DIFF[G.settings.difficulty];
   G.watching = !roster.some(s => s.local); // nobody here drives: this screen follows the first car
   roster.forEach((s, pid) => {
-    const def = CAR_BY_ID[s.car] || CARS[0], c = new Car(def, { human: s.human, name: s.name || def.driver, pid });
+    const def = CAR_BY_ID[s.car] || CARS[0], again = s.name ? 0 : roster.slice(0, pid).filter(o => !o.name && o.car === s.car).length;
+    const c = new Car(def, { human: s.human, name: s.name || def.driver + ['', ' II', ' III', ' IV'][Math.min(again, 3)], pid }); // a model's second driver in a big field: "Dee Cortez II"
     c.speedK = s.human ? 1 : diff.speed;
     G.cars.push(c);
     if (s.human) c.ctl = newControls(); else G.ais.push(new AI(c));

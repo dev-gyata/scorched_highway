@@ -16,8 +16,8 @@ const PICK_SPOTS: PickSpot[] = [
   [-80, -80, W_POOL], [-140, 40, W_POOL], [-60, 80, W_POOL], [10, 80, W_POOL], [80, 20, W_POOL], [120, -40, W_POOL],
   [40, -80, W_POOL], [-20, -122, W_POOL], [-100, 130, W_POOL], [90, -110, W_POOL], [150, -10, ['special', 'rockets']], [-150, -40, ['special', 'mortar']],
 ];
-/** Starting spots round the edge of town, everyone facing the middle. */
-const SPAWNS = [[0, 118], [102, 59], [102, -59], [0, -118], [-92, -38], [-102, 59]];
+/** Starting spots round the edge of town, everyone facing the middle: six spread evenly, and four between them for bigger fields. */
+const SPAWNS = [[0, 118], [102, 59], [102, -59], [0, -118], [-92, -38], [-102, 59], [59, 102], [118, 0], [59, -102], [-59, -102]];
 
 let built = false;
 export const ghostTown: GameMap = {
@@ -34,7 +34,7 @@ export const ghostTown: GameMap = {
   collide, blocked, solid,
   outOfBounds: (x, z) => Math.hypot(x, z) > 215,
   spawns(n) {
-    return SPAWNS.slice().sort(() => Math.random() - 0.5).slice(0, n).map(([x, z]): Spot => ({ x, z, yaw: Math.atan2(-x, -z) }));
+    return SPAWNS.slice(0, Math.max(6, n)).sort(() => Math.random() - 0.5).slice(0, n).map(([x, z]): Spot => ({ x, z, yaw: Math.atan2(-x, -z) }));
   },
   drawRadar(x, toR, R, range) {
     const [ax, ay] = toR(0, 0);

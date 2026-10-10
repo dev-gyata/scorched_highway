@@ -54,7 +54,7 @@
     <div class="gcard setup">
       <div class="cyc" data-opt="mode"></div>
       <div class="cyc" data-opt="map"></div>
-      <div class="cyc" data-opt="opponents" data-vals="2,3,4,5" data-labels="2 opponents,3 opponents,4 opponents,5 opponents"></div>
+      <div class="cyc" data-opt="opponents" data-vals="2,3,4,5,7,9" data-labels="2 opponents,3 opponents,4 opponents,5 opponents,7 opponents,9 opponents"></div>
       <div class="cyc" data-opt="difficulty" data-vals="0,1,2" data-labels="Easy,Normal,Hard"></div>
       <div class="cyc" data-opt="tod" data-vals="noon,sunset,night" data-labels="Noon,Sunset,Night"></div>
       <button class="btn primary go" id="startBtn">Enter the Arena</button>
@@ -100,7 +100,7 @@
   <div class="card net">
     <div class="stripes"></div>
     <h2>Play online</h2>
-    <p id="netIntro">Up to six drivers. One of you hosts and sends the others a link (or the room code).</p>
+    <p id="netIntro">Up to ten drivers. One of you hosts and sends the others a link (or the room code).</p>
     <label class="field"><span>Your name</span><input id="netName" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="Driver"></label>
     <div class="row net-go">
       <button class="btn primary" id="netHost">Host a game</button>
@@ -126,6 +126,7 @@
       <div class="cyc" data-opt="difficulty" data-vals="0,1,2" data-labels="Easy bots,Normal bots,Hard bots"></div>
       <div class="cyc" data-opt="tod" data-vals="noon,sunset,night" data-labels="Noon,Sunset,Night"></div>
       <div class="cyc" data-opt="bots" data-vals="fill,off" data-labels="Bots fill the field,No bots"></div>
+      <div class="cyc" data-opt="field" data-vals="6,8,10" data-labels="Field of 6,Field of 8,Field of 10"></div>
     </div>
     <p class="net-status" id="lobbyNote" role="status"></p>
     <div class="row">

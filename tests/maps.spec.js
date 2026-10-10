@@ -41,6 +41,29 @@ test('every map and mode pairing starts, plays and ends cleanly', async ({ page 
   for (const p of played) { expect(p.ok, p.pair).toBe(true); expect(p.status, p.pair).not.toBe(''); }
 });
 
+test('every map has room for a field of ten: nobody starts in a wall or on top of someone else', async ({ page }) => {
+  test.slow();
+  await boot(page);
+  const fields = await page.evaluate(() => {
+    const { G, goGarage, startMatch, step, allMaps } = window.SH, out = [];
+    for (const map of allMaps()) for (const mode of map.modes) {
+      G.settings.mode = mode; G.settings.map = map.id; G.settings.opponents = 9;
+      goGarage(); startMatch(); G.countdown = 0;
+      let gap = Infinity; for (const a of G.cars) for (const b of G.cars) if (a !== b) gap = Math.min(gap, Math.hypot(a.x - b.x, a.z - b.z));
+      const clear = G.cars.every(c => !map.blocked(c.x, c.z, 0)), names = new Set(G.cars.map(c => c.name)).size;
+      for (let i = 0; i < 240; i++) step(1 / 60, 1 / 60);
+      out.push({ pair: `${map.id}/${mode}`, cars: G.cars.length, gap, clear, names, moving: G.cars.filter(c => c.speed > 3).length });
+    }
+    return out;
+  });
+  for (const f of fields) {
+    expect(f.cars, f.pair).toBe(10); expect(f.clear, f.pair).toBe(true);
+    expect(f.gap, f.pair).toBeGreaterThan(5); // a car is under 5 m long
+    expect(f.names, f.pair).toBe(10); // a model's second driver gets a name of their own
+    expect(f.moving, f.pair).toBeGreaterThan(5); // and the bots get going
+  }
+});
+
 test('garage: picking a mode offers only the maps that host it', async ({ page }) => {
   await boot(page);
   await page.click('#toGarage');

@@ -58,6 +58,8 @@ export function hostLost() {
 export function migrated(from: string) {
   const line = order();
   if (!S || !S.seats || line.indexOf(from) < 0) return; // only someone in this match's line can take it over
+  // and someone only watching (anyone with the link can be) only once nobody who's playing is left to
+  if (!S.line.includes(from) && S.line.some(id => id !== S!.host && id !== from && S!.players.some(p => p.id === id) && (id === S!.me || S!.t.links().includes(id)))) return;
   const hostHere = S.role.name === 'guest' && !waiting && S.host !== from && now() - (S.heard.get(S.host) ?? 0) < SILENT;
   if (hostHere) { claim = { from, at: now() }; return; } // and not while the host is still with us
   waiting = '';

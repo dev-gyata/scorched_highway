@@ -15,7 +15,7 @@ import { PROTOCOL, type Player } from './types';
 
 /** Snapshots a second, and checkpoints (for a new host to carry on from, see migrate.ts). */
 const SNAP_RATE = 20, CHECKPOINT_EVERY = 1;
-export const MAX_PLAYERS = 6;
+export const MAX_PLAYERS = 10;
 
 /** Become the host (of a new room, or of a match already going when the host before left: migrate.ts). */
 export function hostRole(): Role {
@@ -100,7 +100,7 @@ export function shareLobby() {
 /** Start a match for everyone in the room. */
 export function startOnline() {
   if (!S) return;
-  const seats = seatsFor(S.players, hostOpts(), CARS.map(d => d.id));
+  const seats = seatsFor(S.players, hostOpts());
   broadcast({ t: 'start', seats, opts: hostOpts() });
   beginMatch(seats, hostOpts(), false);
 }

@@ -1,6 +1,7 @@
 // The online session: the room this player is in, who else is there, and which role this player has right now
 // (host or guest, see types.ts). It owns the transport and passes what arrives to the role; it starts matches the
 // same way on every screen; and it gives the game loop its hook (G.net).
+import { botCars } from '../cars/roster.js';
 import { onEvent, type GameEvent } from '../engine/events';
 import { isTouch } from '../engine/util.js';
 import { tick } from '../game/loop.js';
@@ -54,7 +55,7 @@ export function openTransport(id: string): Promise<Transport> {
 /** This player as the lobby lists them. */
 export const meAsPlayer = (id: string): Player => ({ id, name: G.settings.name || 'Driver', car: G.settings.car, ready: false, desktop: !isTouch, ping: 0 });
 /** What the host has picked, from its settings. */
-export const hostOpts = (): MatchOpts => ({ mode: G.settings.mode, map: G.settings.map, difficulty: +G.settings.difficulty, tod: G.settings.tod, bots: G.settings.bots === 'off' ? 'off' : 'fill' });
+export const hostOpts = (): MatchOpts => ({ mode: G.settings.mode, map: G.settings.map, difficulty: +G.settings.difficulty, tod: G.settings.tod, bots: G.settings.bots === 'off' ? 'off' : 'fill', field: [6, 8, 10].includes(+G.settings.field) ? +G.settings.field : 6 });
 
 /** Start a session on transport `t`, as `role`. */
 let own: Partial<typeof G.settings> = {};
@@ -122,15 +123,12 @@ export const pidOf = (id: string) => (S?.seats ? S.seats.findIndex(s => s.id ===
 export const idOf = (pid: number) => S?.seats?.[pid]?.id;
 
 /**
- * The seats for a match: the people in lobby order, then (if bots fill the field) bots in the other cars up to six.
- * People may pick the same car; bots never take one a person has.
+ * The seats for a match: the people in lobby order, then (if bots fill the field) bots up to the size of field the
+ * host picked. People may pick the same car; bots take the cars nobody has first (cars/roster.js).
  */
-export function seatsFor(players: Player[], opts: MatchOpts, cars: string[]): Seat[] {
+export function seatsFor(players: Player[], opts: MatchOpts): Seat[] {
   const seats: Seat[] = players.map(p => ({ car: p.car, human: true, name: p.name, id: p.id }));
-  if (opts.bots === 'fill') {
-    const free = cars.filter(c => !players.some(p => p.car === c)).sort(() => Math.random() - 0.5);
-    while (seats.length < 6 && free.length) seats.push({ car: free.pop()!, human: false, name: '' });
-  }
+  if (opts.bots === 'fill') for (const car of botCars(players.map(p => p.car), opts.field - seats.length)) seats.push({ car, human: false, name: '' });
   return seats;
 }
 /** Start a match on this screen as the host described it (host and guests alike). */

@@ -63,7 +63,7 @@ export function buildGarage() {
     };
     const step = dir => {
       const o = options(), i = (Math.max(0, o.findIndex(([v]) => v === String(G.settings[key]))) + dir + o.length) % o.length;
-      setSetting(key, key === 'opponents' || key === 'difficulty' ? +o[i][0] : o[i][0]);
+      setSetting(key, key === 'opponents' || key === 'difficulty' || key === 'field' ? +o[i][0] : o[i][0]);
       document.querySelectorAll('.cyc').forEach(c => c.dispatchEvent(new Event('sync')));
     };
     prev.addEventListener('click', () => step(-1)); next.addEventListener('click', () => step(1));

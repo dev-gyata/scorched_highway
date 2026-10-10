@@ -103,8 +103,8 @@ function render() {
   go.disabled = hostHere && S.players.length < 2 && G.settings.bots === 'off';
   const opts = S.opts, mode = opts.mode === 'race' ? 'Race' : 'Deathmatch';
   status('#lobbyNote', S.shut ? 'The invite link and code stopped working when the first host left. Open a new room to invite more people.' : hostHere
-    ? (isTouch ? 'Hosting works best on a computer: the host’s device runs the whole match.' : S.players.length < 2 ? 'Waiting for drivers… or start now against bots.' : '')
-    : `${mode} · ${opts.bots === 'fill' ? 'bots fill the field' : 'no bots'} · the host starts the match`);
+    ? (isTouch ? 'Hosting works best on a computer: the host’s device runs the whole match and sends it to everyone.' : S.players.length < 2 ? 'Waiting for drivers… or start now against bots.' : '')
+    : `${mode} · ${opts.bots === 'fill' ? `bots fill a field of ${opts.field}` : 'no bots'} · the host starts the match`);
 }
 /** The link that brings someone straight into this room. */
 function inviteLink() {

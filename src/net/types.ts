@@ -35,7 +35,7 @@ export interface Transport {
 /** Someone in the room, in lobby order: the order in which they'd take over as host. */
 export interface Player { id: string; name: string; car: string; ready: boolean; desktop: boolean; ping: number }
 /** What the host picks for everyone. */
-export interface MatchOpts { mode: string; map: string; difficulty: number; tod: string; bots: 'fill' | 'off' }
+export interface MatchOpts { mode: string; map: string; difficulty: number; tod: string; bots: 'fill' | 'off'; field: number }
 /** One car in a match, in pid order: a person (`id` their address) or a bot. */
 export interface Seat { car: string; human: boolean; name: string; id?: string }
 

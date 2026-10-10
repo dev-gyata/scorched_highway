@@ -241,3 +241,47 @@ test('online: the invite link still works after the host who made it has left', 
   expect(await late.evaluate(() => window.SH.net.session.host)).toBe(id);
   expect(await fay.evaluate(() => window.SH.net.session.players.map(p => p.name))).toEqual(['Fay', 'Lou']);
 });
+
+// ---------- big rooms ----------
+test('online: a room holds ten people (the eleventh is told it is full), and bots fill the field the host picks', async ({ context }) => {
+  test.slow();
+  const host = await player(context, 'Hana'), code = await room(host);
+  // nine more arrive: bare tabs speaking the between-tabs transport (net/local.ts), so the test doesn't draw ten games
+  const crowd = await context.newPage();
+  await crowd.goto('/favicon.ico').catch(() => { });
+  const told = await crowd.evaluate(async code => {
+    const bc = new BroadcastChannel('scorched-net'), to = 'scorched-hwy-' + code, got = {};
+    bc.onmessage = ({ data: n }) => { if (n.k === 'data' && typeof n.d === 'string') (got[n.to] ||= []).push(JSON.parse(n.d)); };
+    for (let i = 0; i < 10; i++) {
+      const from = `${to}-crowd${i}`;
+      bc.postMessage({ k: 'open', from, to });
+      await new Promise(r => setTimeout(r, 60));
+      bc.postMessage({ k: 'data', from, to, d: JSON.stringify({ t: 'hello', name: 'Crowd ' + i, car: 'lawdog', desktop: true, v: 1 }) });
+    }
+    await new Promise(r => setTimeout(r, 800));
+    return { last: got[`${to}-crowd9`].filter(m => m.t !== 'hb').map(m => m.why || m.t), ninth: got[`${to}-crowd8`].some(m => m.t === 'lobby' && m.players.length === 10) };
+  }, code);
+  expect(told.ninth).toBe(true);
+  expect(told.last).toEqual(['That game is full.']);
+  expect(await host.evaluate(() => window.SH.net.session.players.length)).toBe(10);
+  // ten people, ten cars; the field setting only adds bots
+  await host.evaluate(() => { window.SH.G.settings.field = 8; });
+  await host.click('#lobbyGo');
+  await host.waitForFunction(() => window.SH.G.state === 'playing', null, { timeout: 60_000 });
+  expect(await host.evaluate(() => { const { G } = window.SH; return [G.cars.length, G.cars.filter(c => c.human).length]; })).toEqual([10, 10]);
+});
+
+test('online: alone in a room with a field of ten, nine bots line up', async ({ context }) => {
+  test.slow();
+  const host = await player(context, 'Hana'), guest = await player(context, 'Gus');
+  await room(host, guest);
+  for (let i = 0; i < 2; i++) await host.click('#lobbyOpts .cyc[data-opt="field"] button[aria-label="Next"]');
+  await expect(guest.locator('#lobbyNote')).toContainText('field of 10');
+  await start(host, guest);
+  for (const p of [host, guest]) expect(await p.evaluate(() => { const { G } = window.SH; return [G.cars.length, G.cars.filter(c => !c.human).length]; })).toEqual([10, 8]);
+  // the guest sees all ten where the host has them
+  await guest.waitForFunction(() => window.SH.G.cars.every(c => c.hp > 0 && Number.isFinite(c.x)), null, { timeout: 60_000 });
+  const size = await host.evaluate(() => window.SH.net.encodeSnap(1, 0).byteLength);
+  expect(size).toBeLessThan(1500);
+  console.log('snapshot with ten cars:', size, 'bytes');
+});

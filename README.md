@@ -8,7 +8,7 @@ Runs in any modern browser, desktop or phone. Players need nothing installed; de
 
 **[Play it in your browser →](https://dev-gyata.github.io/scorched_highway/)**
 
-**Online:** choose *Play online*, enter a name and *Host a game*; then send friends the room's link (*Copy link* in the lobby, *Invite* in the pause menu): opening it puts them straight into the room. They can also choose *Play online* and type the five-letter room code. Someone who arrives while a match is on watches it and drives in the next one. Up to six drivers, on desktops and phones; the host picks the mode, map, bot difficulty, time of day and whether bots fill the field. Players are connected browser to browser through PeerJS's free public broker, so there's no game server. Some networks (strict mobile carriers, offices) can't connect two browsers directly; for those, build with a TURN relay: `VITE_TURN_URL`, `VITE_TURN_USER` and `VITE_TURN_PASS`.
+**Online:** choose *Play online*, enter a name and *Host a game*; then send friends the room's link (*Copy link* in the lobby, *Invite* in the pause menu): opening it puts them straight into the room. They can also choose *Play online* and type the five-letter room code. Someone who arrives while a match is on watches it and drives in the next one. Up to ten drivers, on desktops and phones; the host picks the mode, map, bot difficulty, time of day, whether bots fill the field, and how big the field is (6, 8 or 10 cars). The host's device runs the match and sends it to everyone (with ten players, twenty 0.7 KB snapshots a second to each of nine guests: about 120 KB/s, or 1 Mbit/s, up), so a computer hosts a full room better than a phone. Players are connected browser to browser through PeerJS's free public broker, so there's no game server. Some networks (strict mobile carriers, offices) can't connect two browsers directly; for those, build with a TURN relay: `VITE_TURN_URL`, `VITE_TURN_USER` and `VITE_TURN_PASS`.
 
 The game is a static site: `npm run build` produces `dist/`, which can be hosted anywhere. Pushes to `main` are built and published to GitHub Pages by CI (one-time setup: *Settings → Pages → Source: GitHub Actions*).
 
@@ -29,7 +29,7 @@ npm run check      # lint + typecheck + build + smoke tests, the same as CI
 | `npm run lint` | ESLint, which catches undefined names, unused code and writes to imported values |
 | `npm run typecheck` | TypeScript checks the JavaScript (loose mode) against Three.js's types; catches wrong property names and argument types |
 | `npm test` | Playwright smoke tests against the build: boot, every car model, garage, a fast-forwarded match |
-| `npm run perf -- [--quality high\|low] [--phone] [--frames 60]` | Benchmark: boot timings (median of warm loads), a scripted 6-car match driven frame by frame, draw calls, triangles and vertex memory per scene layer (shadow pass included), and the hottest functions. `--phone` emulates a phone viewport with touch and a 4x slower CPU. Writes `shots/perf-*.json`. It runs on a software GPU, so compare runs with each other |
+| `npm run perf -- [--quality high\|low] [--phone] [--frames 60] [--cars 6]` | Benchmark: boot timings (median of warm loads), a scripted match (6 cars unless `--cars` says otherwise) driven frame by frame, draw calls, triangles and vertex memory per scene layer (shadow pass included), and the hottest functions. `--phone` emulates a phone viewport with touch and a 4x slower CPU. Writes `shots/perf-*.json`. It runs on a software GPU, so compare runs with each other |
 | `npm run shots -- cars\|env [--tod noon\|sunset\|night] [names]` | Screenshots into `shots/` with a contact sheet: each car from three angles, or fixed viewpoints around the arena |
 | `npm run net -- [--guests 2] [--mode race] [--lag 40] [--seconds 20]` | Online check: a host and guests in headless tabs (`?net=local`) playing a bot-filled match. Reports bytes a second to each guest, snapshot size and packing time, how far guests' views drift from the host, how long a press takes to reach the host, and how long the match takes to carry on when the host leaves. The tabs share one software renderer at a few frames a second, so drift and delays come out pessimistic: compare runs with each other |
 
@@ -74,7 +74,7 @@ In the browser console, `window.SH` exposes the game state and a few entry point
 - **AI drivers** with personalities (rammers, snipers, opportunists) that hunt, retreat to repair, grab pickups and fight each other, or race the course and pick their branch at each fork.
 - **Destructible arena:** exploding barrels and gas pumps, cacti, billboards and a water tower you can drop on someone.
 - **Arcade driving:** drifts, ramps and dunes for big air, cars that smoke, burn and lose wheels when wrecked.
-- **Online play:** up to six drivers with a room code, bots optional, on desktops and phones. If the host leaves mid-match, the next player takes over and the match goes on.
+- **Online play:** up to ten drivers with an invite link or a room code, bots optional, on desktops and phones. If the host leaves mid-match, the next player takes over and the match goes on.
 - **Options:** 2–5 opponents, three difficulties, noon / sunset / night (with headlights), view width and camera distance, auto-fire and auto-drift, fast or pretty graphics, sound on/off. Phones and tablets play in landscape.
 
 ## Controls
