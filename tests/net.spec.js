@@ -90,6 +90,11 @@ async function start(host, ...guests) {
   for (const g of guests) await g.waitForFunction(() => window.SH.G.countdown <= 0, null, { timeout: 45_000 });
 }
 
+/** Close through the browser lifecycle and wait for the tab to finish closing. */
+async function closeTab(page) {
+  await Promise.all([page.waitForEvent('close', { timeout: 30_000 }), page.close({ runBeforeUnload: true })]);
+}
+
 test('online: host and guest share a deathmatch: driving, the feed, results for each, and a rematch', async ({ context }) => {
   test.slow();
   const host = await player(context, 'Hana'), guest = await player(context, 'Gus', { car: 'lawdog' });
@@ -131,7 +136,7 @@ test('online: a guest who leaves mid-match hands their car to a bot', async ({ c
   test.slow();
   const host = await player(context, 'Hana'), guest = await player(context, 'Gus');
   await room(host, guest); await start(host, guest);
-  await guest.close();
+  await closeTab(guest);
   await host.waitForFunction(() => !window.SH.G.cars[1].human, null, { timeout: 30_000 });
   const r = await host.evaluate(() => { const { G } = window.SH; return { bot: G.ais.some(a => a.car === G.cars[1]), players: window.SH.net.session.players.length }; });
   expect(r).toEqual({ bot: true, players: 1 });
@@ -145,7 +150,7 @@ test('online: when the host leaves, the next player takes over and the match goe
   await start(host, first, second);
   await host.waitForTimeout(2500); // a checkpoint or two
   const hp = await first.evaluate(() => window.SH.G.cars.map(c => Math.round(c.hp)));
-  await host.close();
+  await closeTab(host);
   // Fay joined first, so she takes over; Sid follows her
   await first.waitForFunction(() => window.SH.net.session.role.name === 'host', null, { timeout: 30_000 });
   const fay = await first.evaluate(() => window.SH.net.session.me);
@@ -159,7 +164,7 @@ test('online: when the host leaves, the next player takes over and the match goe
   await first.waitForFunction(() => window.SH.G.cars[2].ctl?.throttle === 1 && window.SH.G.cars[2].speed > 3, null, { timeout: 90_000 });
   await second.keyboard.up('KeyW');
   // and if Fay goes too, Sid carries on alone with the bots
-  await first.close();
+  await closeTab(first);
   await second.waitForFunction(() => window.SH.net.session.role.name === 'host' && !window.SH.G.replica, null, { timeout: 30_000 });
   expect(await second.evaluate(() => window.SH.G.state)).toBe('playing');
 });

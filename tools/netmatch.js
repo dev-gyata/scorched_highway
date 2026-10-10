@@ -199,11 +199,12 @@ async function main() {
       window.__netmatch.recovery = { host: id, promotedAt: null, resumedAt: null, fresh: 0, time: window.SH.G.time };
     }, successor.id);
     const closedAt = await host.evaluate(() => performance.timeOrigin + performance.now());
-    await host.close();
+    // Use normal tab-close lifecycle, including departure handlers, and confirm the tab actually closes.
+    await Promise.all([host.waitForEvent('close', { timeout: 30_000 }), host.close({ runBeforeUnload: true })]);
     await wait(successor.page, () => window.__netmatch.recovery.resumedAt !== null && window.SH.net.session.role.name === 'host' && !window.SH.G.replica, null, 'Successor simulation recovery');
     const takeover = await successor.page.evaluate(() => ({ ...window.__netmatch.recovery, state: window.SH.G.state, hostCarIsBot: !window.SH.G.cars[0].human && window.SH.G.ais.some(a => a.car === window.SH.G.cars[0]) }));
     if (!takeover.hostCarIsBot) failures.push('Departed host car was not handed to a bot');
-    console.log(`Host tab closed: ${successor.name} promoted after ${fmt(takeover.promotedAt - closedAt, 0)} ms, simulation advancing after ${fmt(takeover.resumedAt - closedAt, 0)} ms; match ${takeover.state}`);
+    console.log(`Host tab-close request: ${successor.name} promoted after ${fmt(takeover.promotedAt - closedAt, 0)} ms, simulation advancing after ${fmt(takeover.resumedAt - closedAt, 0)} ms; match ${takeover.state}`);
     for (const g of guests.slice(1)) {
       await wait(g.page, id => window.SH.net.session.host === id && window.__netmatch.recovery.resumedAt !== null, successor.id, `${g.name} successor snapshots and replica recovery`);
       const r = await g.page.evaluate(() => window.__netmatch.recovery);
